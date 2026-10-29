@@ -1,0 +1,23 @@
+# 프런트
+node_modules/
+.next/
+out/
+coverage/
+next-env.d.ts
+*.tsbuildinfo
+
+# 비밀 값 (절대 커밋 금지)
+.env
+.env.local
+.env*.local
+backend/.env
+
+# 백엔드
+.venv/
+__pycache__/
+.pytest_cache/
+backend/*.db
+
+# 기타
+.DS_Store
+Thumbs.db

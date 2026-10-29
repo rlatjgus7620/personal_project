@@ -1,0 +1,24 @@
+[project]
+name = "program-backend"
+version = "0.4.0"
+description = "교육 프로그램 신청·참석 관리 API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115",
+    "sqlalchemy>=2.0,<2.1",  # 2.1은 순수 파이썬 대체 경로가 없어 Windows 보안 정책에 막히면 실행 불가 → 2.0으로 고정
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# db 마커가 붙은 테스트(SQL 저장소)는 기본 실행에서 빼고, uv run pytest -m db 로만 실행
+markers = ["db: 실제 DB에 연결하는 테스트 (uv run pytest -m db)"]
+addopts = "-m 'not db'"
