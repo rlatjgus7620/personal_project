@@ -22,30 +22,63 @@
 
 ```text
 personal_project/
-├─ app/                     # Next.js 페이지 (layout.tsx, page.tsx)
+├─ CLAUDE.md                    # 클로드 작업 규칙 (기술 스택, 폴더 구조, 금지 사항)
+├─ README.md                    # 프로젝트 소개, 실행 방법 (지금 보는 문서)
+├─ package.json                 # 화면 쪽 패키지와 명령 (npm run dev:all 등)
+├─ dev-all.ps1                  # 서버와 화면을 터미널 하나로 켜는 스크립트
+├─ .env.example                 # 화면용 환경 변수 예시 (NEXT_PUBLIC_API_URL)
+│
+├─ docs/                        # 명세 문서 (코드보다 먼저 씀)
+│  ├─ IDEA.md                   # 아이디어, MVP, 빼는 것, 버전 로드맵
+│  ├─ PRD.md                    # 기능 목록(F-01~), 사용자 스토리, 화면 문구
+│  ├─ TRD.md                    # 기술 선택 이유, 폴더 구조, 데이터 흐름
+│  ├─ DATA_MODEL.md             # 테이블과 필드, 검사 규칙
+│  ├─ API_SPEC.md               # API 주소, 요청·응답, 에러 형식
+│  ├─ COMPONENT_SPEC.md         # 화면 부품, Props, 동작과 문구
+│  ├─ TEST_CASES.md             # 테스트 ID와 기대 결과 ("완성"의 기준)
+│  └─ images/screenshot.png     # README용 실행 화면
+│
+├─ app/                         # Next.js 페이지
+│  ├─ layout.tsx                # 모든 페이지를 감싸는 틀
+│  ├─ page.tsx                  # 메인 화면 (데이터와 서버 호출을 맡는 "지휘자")
+│  └─ globals.css               # Tailwind 불러오기
+│
 ├─ src/
-│  ├─ components/           # 화면 부품과 테스트
-│  ├─ lib/
-│  │  ├─ applicantApi.ts    # FastAPI를 부르는 함수 모음
-│  │  ├─ filterApplicants.ts# 필터 계산 (순수 함수)
-│  │  └─ format.ts          # 연락처 가리기, 날짜 표시
-│  └─ types/applicant.ts    # 공유 타입
-├─ docs/                    # 명세 문서
-└─ backend/
+│  ├─ components/               # 화면 부품 (+ 같은 이름의 .test.tsx)
+│  │  ├─ ApplicantForm.tsx      # 신청자 등록 폼
+│  │  ├─ ApplicantList.tsx      # 명단 목록
+│  │  ├─ ApplicantItem.tsx      # 신청자 한 줄 (참석 체크, 수정, 삭제 확인)
+│  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름 검색
+│  │  ├─ ApplicantSummary.tsx   # 전체 N명 · 참석 M명
+│  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원과 참석률
+│  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
+│  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
+│  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
+│  │  ├─ validation.ts          # 입력값 검사 (서버와 같은 규칙·문구)
+│  │  ├─ filterApplicants.ts    # 필터 계산
+│  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜 표시
+│  │  └─ report.ts              # CSV 만들기, 프로그램별 요약 계산
+│  ├─ types/applicant.ts        # 공유 타입, 프로그램 목록
+│  └─ test-utils/makeApplicant.ts  # 테스트용 가짜 신청자
+│
+└─ backend/                     # FastAPI 서버
+   ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
+   ├─ uv.lock                   # 설치된 패키지 버전 고정
+   ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
+   ├─ alembic.ini               # DB 마이그레이션 설정
+   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록
    ├─ app/
-   │  ├─ main.py            # FastAPI 앱, CORS, 에러 핸들러 등록
-   │  ├─ config.py          # .env 설정 읽기
-   │  ├─ errors.py          # NotFoundError, DuplicateError
-   │  ├─ schemas.py         # Pydantic 요청/응답 모델
-   │  ├─ repository.py      # 저장소 약속(Protocol) + 메모리 저장소
-   │  ├─ models.py          # DB 테이블 정의
-   │  ├─ db.py              # DB 엔진과 세션
-   │  ├─ sql_repository.py  # DB 저장소
-   │  ├─ deps.py            # get_repo 의존성
-   │  └─ routers/applicants.py # /api/applicants 엔드포인트
-   ├─ alembic/              # 마이그레이션
-   ├─ tests/
-   └─ pyproject.toml
+   │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
+   │  ├─ routers/applicants.py  # /api/applicants 주소별 처리 (GET·POST·PATCH·DELETE)
+   │  ├─ schemas.py             # 요청·응답 검사 (Pydantic)
+   │  ├─ repository.py          # 저장소 약속(Protocol) + 메모리 저장소
+   │  ├─ sql_repository.py      # DB 저장소
+   │  ├─ deps.py                # 라우터에 저장소를 넣어 주는 곳 (get_repo)
+   │  ├─ models.py              # DB 테이블 정의
+   │  ├─ db.py                  # DB 연결과 세션
+   │  ├─ config.py              # .env 설정 읽기
+   │  └─ errors.py              # 404·409용 에러
+   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, API)
 ```
 
 ## 3. 데이터 흐름 — "등록" 버튼을 누르고 DB에 저장되기까지

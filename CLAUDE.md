@@ -20,6 +20,9 @@
 - src/components/   : 화면 컴포넌트 (+ 같은 이름의 .test.tsx)
 - src/lib/          : API 호출 함수, 필터·표시용 순수 함수
 - src/types/        : 공유 타입
+- src/test-utils/   : 테스트용 가짜 데이터 함수
+- docs/images/      : README용 화면 캡처
+- dev-all.ps1       : 서버와 화면을 함께 켜는 스크립트 (npm run dev:all)
 - docs/             : 명세 문서
 - backend/app/      : FastAPI 코드 (main, schemas, repository, routers ...)
 - backend/tests/    : pytest 테스트
