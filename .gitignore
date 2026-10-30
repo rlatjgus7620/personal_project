@@ -21,3 +21,6 @@ backend/*.db
 # 기타
 .DS_Store
 Thumbs.db
+
+# 개인 참고용 문서 (GitHub에 올리지 않음)
+docs/GUIDE_비전공자용_설명.md

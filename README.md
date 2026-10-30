@@ -3,7 +3,6 @@
 교육기관 운영 담당자가 프로그램 신청자를 등록하고, 행사 당일 참석을 체크하고, 프로그램별로 골라 보는 웹 앱입니다.
 AX 풀스택 빌더 과정의 Todo 앱 가이드(STEP 0~14) 방식으로 만든 개인 프로젝트입니다. 현재 버전: **v0.4** (필터와 수정까지)
 
-- 처음 보는 분은 [docs/GUIDE_비전공자용_설명.md](docs/GUIDE_비전공자용_설명.md)부터 읽어 주세요.
 - 명세 문서: [docs/](docs/) 폴더 (IDEA → PRD → TRD → DATA_MODEL → API_SPEC → COMPONENT_SPEC → TEST_CASES)
 
 ## 기술 스택
