@@ -46,6 +46,7 @@
 | API-13 | DELETE | 있는 id | 204, 본문 비어 있음, 이후 GET에 없음 | F-05 |
 | API-14 | DELETE | `/api/applicants/999` | 404, `NOT_FOUND` | F-05 |
 | API-15 | GET /health | | 200, `{"status": "ok"}` | — |
+| API-16 | CORS | 화면 주소가 `localhost:3000`, `localhost:3001`, `127.0.0.1:3000` | 세 주소 모두 허용 헤더가 붙음 | — |
 
 ## 4. 프런트 — 순수 함수 (src/lib/*.test.ts)
 
@@ -58,6 +59,7 @@
 | LOGIC-05 | maskPhone | `010-1234-5678` | `010-****-5678` | F-03 |
 | LOGIC-06 | formatDate | `2026-10-29T05:00:00Z` | `2026.10.29` | F-03 |
 | LOGIC-07 | validateApplicant | 빈 이름 / 틀린 연락처 / 프로그램 없음 / 정상 | 각 문구 / `null` | F-02 |
+| LOGIC-08 | formatPhoneInput | `"010"`, `"0101234"`, `"01012345678"`, `"010-1234-5678"`, `"010 1234 5678abc9"` | `"010"`, `"010-1234"`, `"010-1234-5678"`, 그대로, 숫자 11자리까지만 | F-02 |
 
 ## 5. 프런트 — API 호출 (src/lib/applicantApi.test.ts)
 
@@ -77,13 +79,13 @@
 |---|---|---|---|---|
 | UI-01 | ApplicantForm | 바르게 입력 후 등록 클릭 | `onAdd`가 공백 자른 값으로 호출, 입력칸 비움 | F-01 |
 | UI-02 | ApplicantForm | 이름 `""`, `"   "` | `onAdd` 호출 안 됨, "이름을 입력해 주세요." | F-02 |
-| UI-03 | ApplicantForm | 연락처 `01012345678` | `onAdd` 호출 안 됨, 연락처 형식 문구 | F-02 |
+| UI-03 | ApplicantForm | 연락처를 덜 입력(`0101234`) | `onAdd` 호출 안 됨, 연락처 형식 문구 | F-02 |
 | UI-04 | ApplicantForm | 프로그램 안 고름 | `onAdd` 호출 안 됨, "프로그램을 선택해 주세요." | F-02 |
 | UI-05 | ApplicantForm | 입력창에서 Enter | 등록 클릭과 같음 | F-01 |
 | UI-06 | ApplicantForm | `onAdd`가 `false` 반환 | 입력값 그대로 | F-08 |
 | UI-07 | ApplicantItem | 표시 | 이름, 프로그램 이름, 가린 연락처, 신청일. 전체 번호는 없음 | F-03 |
 | UI-08 | ApplicantItem | 체크박스 클릭 | `onToggle(id)` | F-04 |
-| UI-09 | ApplicantItem | 삭제 클릭 | `onDelete(id)` | F-05 |
+| UI-09 | ApplicantItem | 삭제 → **삭제 확인** 클릭 | 확인 문구가 보이고, 확인을 눌러야 `onDelete(id)` | F-05 |
 | UI-10 | ApplicantItem | `attended=true` | 체크되어 있고 "참석 완료" 표시 | F-04 |
 | UI-11 | ApplicantList | 0명 | `emptyMessage` 표시 | F-03 |
 | UI-12 | ApplicantList | 3명 | 목록 항목 3개 | F-03 |
@@ -98,6 +100,10 @@
 | UI-21 | ApplicantItem | 값을 바꾸다 Esc / 취소 | `onEdit` 호출 안 됨, 원래 값 표시 | F-10 |
 | UI-22 | ApplicantItem | 빈 이름 / 틀린 연락처로 저장 | `onEdit` 호출 안 됨, 문구 표시, 수정 모드 유지 | F-10 |
 | UI-23 | ApplicantItem | 안 바꾸고 저장 | `onEdit` 호출 안 됨, 보기 모드 | F-10 |
+| UI-24 | ApplicantItem | 삭제 → **아니요** 클릭 | `onDelete` 호출 안 됨, 확인 문구 사라짐 | F-05 |
+| UI-25 | ApplicantItem | `busy=true` | 체크박스·수정·삭제 버튼 비활성화 | F-04 |
+| UI-26 | ApplicantItem | 수정 저장 후 `onEdit`가 `false` | 수정 모드와 입력한 값 유지 | F-10 |
+| UI-27 | ApplicantForm | 연락처에 `01012345678` 입력 | 입력칸에 `010-1234-5678`로 보이고 등록됨 | F-02 |
 
 ## 7. 직접 해 보는 확인 (브라우저)
 
@@ -112,12 +118,12 @@
 | 기능 | 테스트 |
 |---|---|
 | F-01 등록 | VAL-01, REPO-01, API-01, CLIENT-02, UI-01, UI-05 |
-| F-02 입력 검사 | VAL-02~04, API-02~04, LOGIC-07, UI-02~04 |
+| F-02 입력 검사 | VAL-02~04, API-02~04, LOGIC-07~08, UI-02~04, UI-27 |
 | F-03 명단 보기 | VAL-06, API-07, LOGIC-05~06, CLIENT-01, UI-07, UI-11~12 |
-| F-04 참석 체크 | REPO-02, API-08, UI-08, UI-10 |
-| F-05 삭제 | REPO-03, API-13~14, CLIENT-04, UI-09 |
+| F-04 참석 체크 | REPO-02, API-08, UI-08, UI-10, UI-25 |
+| F-05 삭제 | REPO-03, API-13~14, CLIENT-04, UI-09, UI-24 |
 | F-06 인원 요약 | UI-13 |
 | F-07 데이터 유지 | DB 저장소 테스트(-m db), MAN-01 |
 | F-08 중복 막기 | REPO-05, API-05~06, CLIENT-05, UI-06 |
 | F-09 필터 | LOGIC-01~04, UI-14~18 |
-| F-10 수정 | VAL-05, API-09~12, CLIENT-03, UI-19~23 |
+| F-10 수정 | VAL-05, API-09~12, CLIENT-03, UI-19~23, UI-26 |

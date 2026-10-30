@@ -84,6 +84,6 @@ personal_project/
 | 프런트 `.env.local` | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | 백엔드 주소, 끝에 `/` 없이 |
 | `backend/.env` | `DATABASE_URL` | `sqlite:///./dev.db` | 비우면 SQLite 기본값. 배포 때는 `postgresql+psycopg://...` |
 | `backend/.env` | `DATABASE_URL_TEST` | `sqlite:///./test.db` | `pytest -m db`용 DB. 비우면 SQLite 기본값 |
-| `backend/.env` | `CORS_ORIGINS` | `http://localhost:3000` | 허용할 화면 주소, 쉼표로 여러 개 |
+| `backend/.env` | `CORS_ORIGINS` | 비우면 `localhost`·`127.0.0.1`의 3000·3001번 | 허용할 화면 주소, 쉼표로 여러 개. 화면이 3001번으로 켜져도 연결되도록 기본값에 포함 |
 
 `.env`, `.env.local`은 Git에 올리지 않는다. 대신 `.env.example`에 키 이름만 적어 둔다.

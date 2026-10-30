@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     # pytest -m db 에서 쓰는 테스트용 DB
     database_url_test: str = f"sqlite:///{(BACKEND_DIR / 'test.db').as_posix()}"
     # 허용할 화면 주소. 쉼표로 여러 개 (예: https://내앱.vercel.app,http://localhost:3000)
-    cors_origins: str = "http://localhost:3000"
+    # 3000번이 사용 중이면 Next.js가 3001번으로 켜지므로 개발 기본값에 함께 넣어 둠
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    )
 
     @property
     def cors_origin_list(self) -> list[str]:

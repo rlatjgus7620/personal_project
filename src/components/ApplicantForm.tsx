@@ -3,6 +3,7 @@
 import { useId, useState, type FormEvent } from "react";
 import { PROGRAMS, type ApplicantInput } from "../types/applicant";
 import { NAME_MAX_LENGTH, isProgramCode, validateApplicant } from "../lib/validation";
+import { formatPhoneInput } from "../lib/format";
 
 type Props = {
   // 서버 저장에 성공하면 true를 돌려줌 → 그때만 입력칸을 비움
@@ -57,7 +58,7 @@ export default function ApplicantForm({ onAdd }: Props) {
         <input
           id={`${id}-phone`}
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
           placeholder="010-0000-0000"
           maxLength={13}
           inputMode="tel"

@@ -7,24 +7,30 @@ import {
   type Applicant,
   type ApplicantChanges,
 } from "../types/applicant";
-import { formatDate, maskPhone } from "../lib/format";
+import { formatDate, formatPhoneInput, maskPhone } from "../lib/format";
 import { NAME_MAX_LENGTH, isProgramCode, validateApplicant } from "../lib/validation";
 
 type Props = {
   applicant: Applicant;
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
-  onEdit: (id: number, changes: ApplicantChanges) => void;
+  // 서버 저장에 성공하면 true → 그때만 수정 칸을 닫음
+  onEdit: (id: number, changes: ApplicantChanges) => Promise<boolean>;
+  // 서버 처리 중이면 true → 버튼을 잠가서 두 번 눌리지 않게
+  busy?: boolean;
 };
 
-export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }: Props) {
+export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, busy = false }: Props) {
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draft, setDraft] = useState({ name: "", phone: "", program: "" });
   const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   function startEdit() {
     setDraft({ name: applicant.name, phone: applicant.phone, program: applicant.program });
     setMessage(null);
+    setConfirmingDelete(false);
     setEditing(true);
   }
 
@@ -33,7 +39,7 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
     setEditing(false);
   }
 
-  function handleSave(event: FormEvent<HTMLFormElement>) {
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = validateApplicant(draft);
     if (error !== null || !isProgramCode(draft.program)) {
@@ -47,8 +53,15 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
     if (name !== applicant.name) changes.name = name;
     if (phone !== applicant.phone) changes.phone = phone;
     if (draft.program !== applicant.program) changes.program = draft.program;
-    if (Object.keys(changes).length > 0) onEdit(applicant.id, changes);
-    setEditing(false);
+    if (Object.keys(changes).length === 0) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const ok = await onEdit(applicant.id, changes);
+    setSaving(false);
+    // 실패하면(예: 중복 연락처) 수정 칸과 입력한 값을 그대로 둠
+    if (ok) setEditing(false);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLFormElement>) {
@@ -81,7 +94,7 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
             value={draft.phone}
             maxLength={13}
             inputMode="tel"
-            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+            onChange={(e) => setDraft({ ...draft, phone: formatPhoneInput(e.target.value) })}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2"
           />
           <select
@@ -96,7 +109,11 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
               </option>
             ))}
           </select>
-          <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-white">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          >
             저장
           </button>
           <button
@@ -117,11 +134,12 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
   }
 
   return (
-    <li className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${rowColor}`}>
+    <li className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${rowColor} ${busy ? "opacity-60" : ""}`}>
       <input
         type="checkbox"
         aria-label={`${applicant.name} 참석`}
         checked={applicant.attended}
+        disabled={busy}
         onChange={() => onToggle(applicant.id)}
         className="h-5 w-5 accent-emerald-600"
       />
@@ -142,22 +160,51 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit }:
           <span>신청 {formatDate(applicant.createdAt)}</span>
         </p>
       </div>
-      <button
-        type="button"
-        aria-label={`${applicant.name} 수정`}
-        onClick={startEdit}
-        className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm"
-      >
-        수정
-      </button>
-      <button
-        type="button"
-        aria-label={`${applicant.name} 삭제`}
-        onClick={() => onDelete(applicant.id)}
-        className="rounded-lg border border-red-200 bg-white px-3 py-1 text-sm text-red-600"
-      >
-        삭제
-      </button>
+      {confirmingDelete ? (
+        // 삭제는 되돌릴 수 없으므로 한 번 더 확인
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <span className="text-sm text-red-700">{applicant.name} 님의 신청을 취소할까요?</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmingDelete(false);
+              onDelete(applicant.id);
+            }}
+            className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+          >
+            삭제 확인
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm"
+          >
+            아니요
+          </button>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            aria-label={`${applicant.name} 수정`}
+            disabled={busy}
+            onClick={startEdit}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm disabled:opacity-50"
+          >
+            수정
+          </button>
+          <button
+            type="button"
+            aria-label={`${applicant.name} 삭제`}
+            disabled={busy}
+            onClick={() => setConfirmingDelete(true)}
+            className="rounded-lg border border-red-200 bg-white px-3 py-1 text-sm text-red-600 disabled:opacity-50"
+          >
+            삭제
+          </button>
+        </>
+      )}
     </li>
   );
 }

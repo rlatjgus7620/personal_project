@@ -128,3 +128,9 @@ def test_api_15_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_api_16_화면이_3001번이나_127_0_0_1이어도_CORS가_허용된다(client: TestClient) -> None:
+    for origin in ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"]:
+        response = client.get(URL, headers={"Origin": origin})
+        assert response.headers.get("access-control-allow-origin") == origin

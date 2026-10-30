@@ -3,7 +3,7 @@
 import type { Applicant, ApplicantChanges, ApplicantInput } from "../types/applicant";
 
 export const CONNECTION_ERROR_MESSAGE =
-  "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+  "서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.";
 
 function baseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";

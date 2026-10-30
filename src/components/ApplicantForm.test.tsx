@@ -39,10 +39,10 @@ test.each(["", "   "])("UI-02 이름이 '%s'이면 onAdd가 호출되지 않는�
   expect(screen.getByRole("alert")).toHaveTextContent("이름을 입력해 주세요.");
 });
 
-test("UI-03 연락처 형식이 틀리면 onAdd가 호출되지 않는다", async () => {
+test("UI-03 연락처를 덜 입력하면 onAdd가 호출되지 않는다", async () => {
   const { onAdd, user, name, phone, program, submit } = setup();
   await user.type(name, "김테스트");
-  await user.type(phone, "01012345678");
+  await user.type(phone, "0101234");
   await user.selectOptions(program, "mock_interview");
   await user.click(submit);
   expect(onAdd).not.toHaveBeenCalled();
@@ -77,4 +77,18 @@ test("UI-06 onAdd가 false를 돌려주면 입력값이 그대로 남는다", as
   expect(onAdd).toHaveBeenCalled();
   expect(name).toHaveValue("김테스트");
   expect(phone).toHaveValue("010-1234-5678");
+});
+
+test("UI-27 숫자만 입력해도 하이픈이 자동으로 들어가고 등록된다", async () => {
+  const { onAdd, user, name, phone, program, submit } = setup();
+  await user.type(name, "김테스트");
+  await user.type(phone, "01012345678");
+  expect(phone).toHaveValue("010-1234-5678");
+  await user.selectOptions(program, "job_search");
+  await user.click(submit);
+  expect(onAdd).toHaveBeenCalledWith({
+    name: "김테스트",
+    phone: "010-1234-5678",
+    program: "job_search",
+  });
 });

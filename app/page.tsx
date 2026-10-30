@@ -59,34 +59,47 @@ export default function ApplicantPage() {
     }
   }
 
-  async function handleToggle(id: number) {
-    const target = applicants.find((a) => a.id === id);
-    if (!target) return;
+  // 서버 처리 중인 신청자 id 모음 (그 줄의 버튼을 잠가서 두 번 눌리지 않게)
+  const [busyIds, setBusyIds] = useState<ReadonlySet<number>>(new Set());
+
+  // id를 "처리 중"으로 표시하고 작업을 실행한 뒤 표시를 지움. 성공하면 true
+  async function runBusy(id: number, task: () => Promise<void>): Promise<boolean> {
     setError(null);
+    setBusyIds((ids) => new Set(ids).add(id));
     try {
-      replace(await updateApplicant(id, { attended: !target.attended }));
+      await task();
+      return true;
     } catch (e) {
       setError(errorText(e));
+      return false;
+    } finally {
+      setBusyIds((ids) => {
+        const next = new Set(ids);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
-  async function handleEdit(id: number, changes: ApplicantChanges) {
-    setError(null);
-    try {
+  async function handleToggle(id: number) {
+    const target = applicants.find((a) => a.id === id);
+    if (!target || busyIds.has(id)) return;
+    await runBusy(id, async () => {
+      replace(await updateApplicant(id, { attended: !target.attended }));
+    });
+  }
+
+  function handleEdit(id: number, changes: ApplicantChanges): Promise<boolean> {
+    return runBusy(id, async () => {
       replace(await updateApplicant(id, changes));
-    } catch (e) {
-      setError(errorText(e));
-    }
+    });
   }
 
   async function handleDelete(id: number) {
-    setError(null);
-    try {
+    await runBusy(id, async () => {
       await deleteApplicant(id);
       setApplicants((list) => list.filter((a) => a.id !== id));
-    } catch (e) {
-      setError(errorText(e));
-    }
+    });
   }
 
   const emptyMessage = isFilterActive(filter)
@@ -122,6 +135,7 @@ export default function ApplicantPage() {
             onToggle={handleToggle}
             onDelete={handleDelete}
             onEdit={handleEdit}
+            busyIds={busyIds}
           />
         )}
       </section>
