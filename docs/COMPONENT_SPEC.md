@@ -7,8 +7,10 @@
 ```text
 ApplicantPage (app/page.tsx)       : 데이터와 상태를 가진 "지휘자"
 ├─ ApplicantSummary                : 전체 N명 · 참석 M명
+├─ ProgramSummary           (v1.1) : 프로그램별 신청·참석 인원과 참석률
 ├─ ApplicantForm                   : 이름 + 연락처 + 프로그램 + 등록 버튼
 ├─ ApplicantFilter          (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름 검색
+├─ ExportButton             (v1.1) : 지금 보이는 명단을 CSV로 저장
 └─ ApplicantList                   : 명단 (ul)
    └─ ApplicantItem                : 한 사람 (li) — 참석 체크, 정보, 수정, 삭제
 ```
@@ -135,6 +137,27 @@ type ApplicantFilterValue = {
 
 - 무엇을 바꾸든 바뀐 항목만 새 값으로 바꾼 **전체 필터 값**으로 `onChange`를 부른다.
 - 필터 값은 페이지의 `useState`로 관리하고, 보여줄 목록은 `filterApplicants()`로 계산한다. (필터된 목록을 따로 state에 저장하지 않음)
+
+### ProgramSummary (v1.1)
+| Props | 타입 |
+|---|---|
+| `applicants` | `Applicant[]` (필터 전 전체 명단) |
+
+- 프로그램 4개를 정해진 순서대로 카드로 보여준다. 신청자가 0명인 프로그램도 보여준다.
+- 카드 내용: 프로그램 이름, `신청 {N}명 · 참석 {M}명`, `참석률 {P}%` (신청 0명이면 `참석률 -`)
+- 참석률은 소수점 없이 반올림. 계산은 `summarizeByProgram()` 순수 함수가 한다.
+
+### ExportButton (v1.1)
+| Props | 타입 |
+|---|---|
+| `applicants` | `Applicant[]` (지금 화면에 보이는, 필터된 명단) |
+
+- 버튼 문구: **명단 CSV 내보내기**. 0명이면 비활성화.
+- 누르면 `toCsv()`로 만든 내용을 `신청자명단_YYYYMMDD.csv`(오늘 날짜, 한국 시간)로 내려받는다.
+- CSV 열: `번호, 이름, 연락처, 프로그램, 참석, 신청일` / 참석 값은 `참석` 또는 `미참석`
+- 엑셀에서 한글이 깨지지 않도록 파일 맨 앞에 BOM(`\uFEFF`)을 붙인다.
+- 값에 쉼표·따옴표·줄바꿈이 있으면 큰따옴표로 감싸고, 값 안의 `"`는 `""`로 바꾼다.
+- 엑셀이 `=`, `+`, `-`, `@`로 시작하는 값을 수식으로 실행하지 않도록 그런 값 앞에는 `'`를 붙인다.
 
 ## 4. 페이지 상태별 화면
 

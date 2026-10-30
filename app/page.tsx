@@ -6,6 +6,8 @@ import ApplicantFilter from "@/components/ApplicantFilter";
 import ApplicantForm from "@/components/ApplicantForm";
 import ApplicantList from "@/components/ApplicantList";
 import ApplicantSummary from "@/components/ApplicantSummary";
+import ExportButton from "@/components/ExportButton";
+import ProgramSummary from "@/components/ProgramSummary";
 import {
   createApplicant,
   deleteApplicant,
@@ -116,6 +118,8 @@ export default function ApplicantPage() {
         <ApplicantSummary applicants={applicants} />
       </header>
 
+      <ProgramSummary applicants={applicants} />
+
       <ApplicantForm onAdd={handleAdd} />
 
       {error && (
@@ -126,6 +130,10 @@ export default function ApplicantPage() {
 
       <section className="flex flex-col gap-3">
         <ApplicantFilter value={filter} onChange={setFilter} />
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-slate-500">{visible.length}명 표시 중</p>
+          <ExportButton applicants={visible} />
+        </div>
         {loading ? (
           <p className="py-10 text-center text-slate-500">불러오는 중...</p>
         ) : (
