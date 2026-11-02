@@ -1,9 +1,14 @@
 import {
   createApplicant,
+  createProgram,
   deleteApplicant,
+  deleteProgram,
   fetchApplicants,
+  fetchPrograms,
   updateApplicant,
+  updateProgram,
 } from "./applicantApi";
+import { makeProgram } from "../test-utils/makeProgram";
 import { makeApplicant } from "../test-utils/makeApplicant";
 
 const API = "http://test-api";
@@ -31,7 +36,7 @@ test("CLIENT-01 fetchApplicants는 GET으로 명단을 받아온다", async () =
 });
 
 test("CLIENT-02 createApplicant는 JSON 본문으로 POST한다", async () => {
-  const input = { name: "김테스트", phone: "010-1234-5678", program: "resume_clinic" as const };
+  const input = { name: "김테스트", phone: "010-1234-5678", programId: 2 };
   const fetchMock = mockFetch(201, makeApplicant());
   await createApplicant(input);
   expect(fetchMock).toHaveBeenCalledWith(`${API}/api/applicants`, {
@@ -62,4 +67,31 @@ test("CLIENT-04 deleteApplicant는 204 응답에서 JSON을 읽지 않는다", a
 test.each([400, 404, 409])("CLIENT-05 서버가 %i을 주면 error.message로 Error를 던진다", async (status) => {
   mockFetch(status, { error: { code: "X", message: "서버가 보낸 문구" } });
   await expect(fetchApplicants()).rejects.toThrow("서버가 보낸 문구");
+});
+
+test("CLIENT-06 프로그램 API는 /api/programs 주소와 메서드를 쓴다", async () => {
+  const input = { name: "모의면접", startDate: "2026-11-10", endDate: null, location: "3층", capacity: 10 };
+  let fetchMock = mockFetch(200, [makeProgram()]);
+  await fetchPrograms();
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs`, undefined);
+
+  fetchMock = mockFetch(201, makeProgram());
+  await createProgram(input);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  fetchMock = mockFetch(200, makeProgram());
+  await updateProgram(3, { capacity: null });
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs/3`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ capacity: null }),
+  });
+
+  fetchMock = mockFetch(204);
+  await deleteProgram(3);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs/3`, { method: "DELETE" });
 });

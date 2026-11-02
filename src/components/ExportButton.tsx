@@ -1,9 +1,12 @@
 "use client";
 
-import type { Applicant } from "../types/applicant";
+import type { Applicant, Program } from "../types/applicant";
 import { csvFileName, toCsv } from "../lib/report";
 
-type Props = { applicants: Applicant[] }; // 지금 화면에 보이는(필터된) 명단
+type Props = {
+  applicants: Applicant[]; // 지금 화면에 보이는(필터된) 명단
+  programs: Program[]; // 프로그램 이름을 쓰기 위해 (v1.2)
+};
 
 // 브라우저에서 파일 내려받기를 실행 (서버를 거치지 않음)
 function download(fileName: string, content: string) {
@@ -19,12 +22,12 @@ function download(fileName: string, content: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function ExportButton({ applicants }: Props) {
+export default function ExportButton({ applicants, programs }: Props) {
   return (
     <button
       type="button"
       disabled={applicants.length === 0}
-      onClick={() => download(csvFileName(), toCsv(applicants))}
+      onClick={() => download(csvFileName(), toCsv(applicants, programs))}
       className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
     >
       명단 CSV 내보내기

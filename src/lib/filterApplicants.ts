@@ -10,7 +10,7 @@ export function filterApplicants(
   return applicants.filter((a) => {
     if (filter.attendance === "attended" && !a.attended) return false;
     if (filter.attendance === "absent" && a.attended) return false;
-    if (filter.program !== "all" && a.program !== filter.program) return false;
+    if (filter.program !== "all" && a.programId !== filter.program) return false;
     if (keyword !== "" && !a.name.toLowerCase().includes(keyword)) return false;
     return true;
   });

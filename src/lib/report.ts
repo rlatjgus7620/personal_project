@@ -1,7 +1,8 @@
 // 보고용 계산 (순수 함수): CSV 만들기, 프로그램별 요약
 
-import { PROGRAMS, programLabel, type Applicant, type ProgramCode } from "../types/applicant";
+import type { Applicant, Program } from "../types/applicant";
 import { formatDate } from "./format";
+import { isFull, programName } from "./programs";
 
 // ---------- CSV ----------
 
@@ -18,12 +19,12 @@ function csvCell(value: string | number): string {
 }
 
 // 엑셀에서 한글이 깨지지 않도록 맨 앞에 BOM(﻿)을 붙임
-export function toCsv(applicants: Applicant[]): string {
+export function toCsv(applicants: Applicant[], programs: Program[]): string {
   const rows = applicants.map((a, index) => [
     index + 1,
     a.name,
     a.phone,
-    programLabel(a.program),
+    programName(programs, a.programId),
     a.attended ? "참석" : "미참석",
     formatDate(a.createdAt),
   ]);
@@ -40,23 +41,28 @@ export function csvFileName(now: Date = new Date()): string {
 // ---------- 프로그램별 요약 ----------
 
 export type ProgramStat = {
-  program: ProgramCode;
+  programId: number;
   label: string;
   total: number;
   attended: number;
+  capacity: number | null;
+  full: boolean;
   rate: number | null; // 참석률(%) 반올림, 신청 0명이면 null
 };
 
-export function summarizeByProgram(applicants: Applicant[]): ProgramStat[] {
-  return PROGRAMS.map(({ code, label }) => {
-    const members = applicants.filter((a) => a.program === code);
+// 프로그램 순서는 받은 그대로 (서버가 만든 순서로 줌)
+export function summarizeByProgram(programs: Program[], applicants: Applicant[]): ProgramStat[] {
+  return programs.map((program) => {
+    const members = applicants.filter((a) => a.programId === program.id);
     const attended = members.filter((a) => a.attended).length;
     const total = members.length;
     return {
-      program: code,
-      label,
+      programId: program.id,
+      label: program.name,
       total,
       attended,
+      capacity: program.capacity,
+      full: isFull({ ...program, applicantCount: total }),
       rate: total === 0 ? null : Math.round((attended / total) * 100),
     };
   });

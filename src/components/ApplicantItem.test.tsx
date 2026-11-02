@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ApplicantItem from "./ApplicantItem";
 import { makeApplicant } from "../test-utils/makeApplicant";
+import { TEST_PROGRAMS } from "../test-utils/makeProgram";
 import type { Applicant } from "../types/applicant";
 
 function setup(
@@ -16,7 +17,7 @@ function setup(
   const user = userEvent.setup();
   render(
     <ul>
-      <ApplicantItem applicant={applicant} busy={busy} {...handlers} />
+      <ApplicantItem applicant={applicant} programs={TEST_PROGRAMS} busy={busy} {...handlers} />
     </ul>,
   );
   return { ...handlers, user };
@@ -77,7 +78,7 @@ describe("수정 모드 (v0.4)", () => {
     expect(screen.getByLabelText("이름 수정")).toHaveValue("김테스트");
     expect(screen.getByLabelText("이름 수정")).toHaveFocus();
     expect(screen.getByLabelText("연락처 수정")).toHaveValue("010-1234-5678");
-    expect(screen.getByLabelText("프로그램 수정")).toHaveValue("resume_clinic");
+    expect(screen.getByLabelText("프로그램 수정")).toHaveValue("2");
   });
 
   test("UI-20 이름을 바꾸고 Enter → 바뀐 항목만 onEdit, 보기 모드로", async () => {

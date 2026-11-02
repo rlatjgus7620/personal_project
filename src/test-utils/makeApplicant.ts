@@ -6,7 +6,7 @@ export function makeApplicant(overrides: Partial<Applicant> = {}): Applicant {
     id: 1,
     name: "김테스트",
     phone: "010-1234-5678",
-    program: "resume_clinic",
+    programId: 2, // TEST_PROGRAMS의 이력서 클리닉
     attended: false,
     createdAt: "2026-10-29T05:00:00Z",
     updatedAt: "2026-10-29T05:00:00Z",

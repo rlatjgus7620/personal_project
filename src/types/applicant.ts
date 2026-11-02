@@ -1,28 +1,24 @@
-// 신청자 관련 공유 타입. docs/DATA_MODEL.md, docs/COMPONENT_SPEC.md와 같아야 합니다.
+// 신청자·프로그램 공유 타입. docs/DATA_MODEL.md, docs/COMPONENT_SPEC.md와 같아야 합니다.
 
-export type ProgramCode =
-  | "job_search"
-  | "resume_clinic"
-  | "mock_interview"
-  | "career_lecture";
+// 프로그램 (v1.2부터 서버 DB에 저장. 코드에 고정하지 않음)
+export type Program = {
+  id: number;
+  name: string;
+  startDate: string | null; // "2026-11-10"
+  endDate: string | null;
+  location: string | null;
+  capacity: number | null; // null이면 정원 제한 없음
+  applicantCount: number; // 지금 신청자 수
+};
 
-// 화면에 보여줄 프로그램 이름 (DB에는 코드만 저장)
-export const PROGRAMS: ReadonlyArray<{ code: ProgramCode; label: string }> = [
-  { code: "job_search", label: "구직활동 프로그램" },
-  { code: "resume_clinic", label: "이력서 클리닉" },
-  { code: "mock_interview", label: "모의면접" },
-  { code: "career_lecture", label: "취업 특강" },
-];
-
-export function programLabel(code: ProgramCode): string {
-  return PROGRAMS.find((p) => p.code === code)?.label ?? code;
-}
+// 프로그램을 추가·수정할 때 보내는 값
+export type ProgramInput = Omit<Program, "id" | "applicantCount">;
 
 export type Applicant = {
   id: number;
   name: string;
   phone: string;
-  program: ProgramCode;
+  programId: number;
   attended: boolean;
   // 서버가 JSON으로 보내는 날짜는 문자열(ISO 형식)이라서 string으로 받음
   createdAt: string;
@@ -33,7 +29,7 @@ export type Applicant = {
 export type ApplicantInput = {
   name: string;
   phone: string;
-  program: ProgramCode;
+  programId: number;
 };
 
 // 수정할 때 보내는 값 (바꿀 항목만)
@@ -43,7 +39,7 @@ export type AttendanceFilter = "all" | "attended" | "absent";
 
 export type ApplicantFilterValue = {
   attendance: AttendanceFilter;
-  program: ProgramCode | "all";
+  program: number | "all"; // 프로그램 번호
   keyword: string;
 };
 

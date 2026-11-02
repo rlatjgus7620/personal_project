@@ -25,3 +25,16 @@ export function formatDate(iso: string): string {
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}.${get("month")}.${get("day")}`;
 }
+
+// "2026-11-10" → "2026.11.10" (날짜만 있는 값, 시간대 변환 없이)
+function dotDate(ymd: string): string {
+  return ymd.replace(/-/g, ".");
+}
+
+// 프로그램 기간 표시 (v1.2): 없음 → "기간 미정", 하루 → "2026.11.10", 여러 날 → "2026.11.10 ~ 2026.11.12"
+export function formatPeriod(start: string | null, end: string | null): string {
+  if (!start && !end) return "기간 미정";
+  if (start && (!end || end === start)) return dotDate(start);
+  if (!start && end) return `~ ${dotDate(end)}`;
+  return `${dotDate(start as string)} ~ ${dotDate(end as string)}`;
+}

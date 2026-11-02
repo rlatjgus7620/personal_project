@@ -50,35 +50,39 @@ personal_project/
 │  │  ├─ ApplicantItem.tsx      # 신청자 한 줄 (참석 체크, 수정, 삭제 확인)
 │  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름 검색
 │  │  ├─ ApplicantSummary.tsx   # 전체 N명 · 참석 M명
-│  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원과 참석률
+│  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원, 참석률, 정원·마감
+│  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제 (v1.2)
+│  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원 입력 (v1.2)
 │  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
 │  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
 │  │  ├─ validation.ts          # 입력값 검사 (서버와 같은 규칙·문구)
 │  │  ├─ filterApplicants.ts    # 필터 계산
-│  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜 표시
+│  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜·기간 표시
+│  │  ├─ programs.ts            # 프로그램 이름 찾기, 신청자 수·마감 계산 (v1.2)
 │  │  └─ report.ts              # CSV 만들기, 프로그램별 요약 계산
-│  ├─ types/applicant.ts        # 공유 타입, 프로그램 목록
-│  └─ test-utils/makeApplicant.ts  # 테스트용 가짜 신청자
+│  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램)
+│  └─ test-utils/               # 테스트용 가짜 신청자·프로그램 (makeApplicant, makeProgram)
 │
 └─ backend/                     # FastAPI 서버
    ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
-   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록
+   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
    │  ├─ routers/applicants.py  # /api/applicants 주소별 처리 (GET·POST·PATCH·DELETE)
+   │  ├─ routers/programs.py    # /api/programs 주소별 처리 (v1.2)
    │  ├─ schemas.py             # 요청·응답 검사 (Pydantic)
    │  ├─ repository.py          # 저장소 약속(Protocol) + 메모리 저장소
    │  ├─ sql_repository.py      # DB 저장소
    │  ├─ deps.py                # 라우터에 저장소를 넣어 주는 곳 (get_repo)
-   │  ├─ models.py              # DB 테이블 정의
+   │  ├─ models.py              # DB 테이블 정의 (programs, applicants)
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
-   │  └─ errors.py              # 404·409용 에러
-   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, API)
+   │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
+   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 신청자·프로그램 API)
 ```
 
 ## 3. 데이터 흐름 — "등록" 버튼을 누르고 DB에 저장되기까지
@@ -86,17 +90,21 @@ personal_project/
 1. 담당자가 `ApplicantForm`에 이름·연락처·프로그램을 넣고 **등록**을 누른다.
 2. `ApplicantForm`이 빈 이름, 연락처 형식을 먼저 검사한다. 틀리면 문구만 보여주고 멈춘다.
 3. 통과하면 `page.tsx`의 `handleAdd`가 `applicantApi.ts`의 `createApplicant()`를 부른다.
-4. `createApplicant()`가 `POST http://localhost:8000/api/applicants`로 JSON을 보낸다.
+4. `createApplicant()`가 `POST http://localhost:8000/api/applicants`로 JSON(`name`, `phone`, `programId`)을 보낸다.
 5. FastAPI가 요청을 받아 Pydantic(`ApplicantCreate`)으로 다시 검사한다. 틀리면 400.
 6. 라우터가 `get_repo()`로 받은 저장소의 `create()`를 부른다.
-7. 저장소가 같은 연락처+프로그램이 있는지 확인한다. 있으면 409.
-8. SQL 저장소가 `applicants` 테이블에 한 줄을 넣고, 만들어진 행을 돌려준다.
+7. 저장소가 프로그램이 있는지(없으면 400), 같은 연락처+프로그램이 있는지(있으면 409), 정원이 찼는지(찼으면 409) 확인한다.
+8. SQL 저장소가 `applicants` 테이블에 한 줄을 넣고(`program_id`는 `programs.id`를 가리키는 외래 키), 만들어진 행을 돌려준다.
 9. FastAPI가 `ApplicantOut`으로 바꿔 camelCase JSON + 201로 응답한다.
 10. `page.tsx`가 응답 받은 신청자를 목록 맨 위에 넣고 화면을 다시 그린다.
 
 ```text
 화면(ApplicantForm) → page.tsx → applicantApi.ts → FastAPI 라우터 → 저장소 → DB
 ```
+
+v1.2부터 7번 단계에서 **프로그램이 있는지, 정원이 찼는지**도 저장소가 함께 확인합니다.
+정원 같은 업무 규칙은 화면(선택지 비활성화)과 서버(409 응답) 양쪽에서 지키되, **최종 판단은 서버**가 합니다.
+화면만 막으면 다른 창에서 동시에 신청할 때 정원을 넘을 수 있기 때문입니다.
 
 ## 4. 저장소(Repository) 분리
 - 라우터는 `Depends(get_repo)`로 받은 저장소만 쓴다. DB를 직접 모른다.
@@ -107,6 +115,8 @@ personal_project/
 - 응답 형식: `{ "error": { "code": "...", "message": "..." } }`
 - FastAPI 기본 422 검증 에러 → 400 `VALIDATION_ERROR`로 바꾼다.
 - 없는 id → 404 `NOT_FOUND`, 중복 신청 → 409 `DUPLICATE_APPLICATION`
+- v1.2: 정원 초과 → 409 `PROGRAM_FULL`, 프로그램 이름 중복 → 409 `DUPLICATE_PROGRAM`, 신청자가 있는 프로그램 삭제 → 409 `PROGRAM_IN_USE`
+- 이런 에러는 모두 `errors.py`의 `AppError`를 물려받고(상태 코드·코드·문구를 가짐), `main.py`의 핸들러 하나가 같은 형식으로 응답한다. 새 규칙이 생겨도 에러 클래스만 하나 추가하면 된다.
 - 화면은 서버의 `error.message`를 그대로 사용자에게 보여준다.
 - 서버에 연결조차 안 되면 "서버에 연결할 수 없습니다..." 문구를 보여준다.
 

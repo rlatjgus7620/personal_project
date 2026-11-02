@@ -1,4 +1,4 @@
-"""REPO-01 ~ REPO-05: 메모리 저장소"""
+"""REPO-01 ~ REPO-11: 메모리 저장소"""
 
 from collections.abc import Callable
 

@@ -1,8 +1,9 @@
-import type { Applicant, ApplicantChanges } from "../types/applicant";
+import type { Applicant, ApplicantChanges, Program } from "../types/applicant";
 import ApplicantItem from "./ApplicantItem";
 
 type Props = {
   applicants: Applicant[];
+  programs: Program[];
   emptyMessage: string;
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
@@ -12,6 +13,7 @@ type Props = {
 
 export default function ApplicantList({
   applicants,
+  programs,
   emptyMessage,
   onToggle,
   onDelete,
@@ -27,6 +29,7 @@ export default function ApplicantList({
         <ApplicantItem
           key={applicant.id}
           applicant={applicant}
+          programs={programs}
           onToggle={onToggle}
           onDelete={onDelete}
           onEdit={onEdit}

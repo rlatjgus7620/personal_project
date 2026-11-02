@@ -3,9 +3,9 @@ import { INITIAL_FILTER } from "../types/applicant";
 import { filterApplicants } from "./filterApplicants";
 
 const list = [
-  makeApplicant({ id: 1, name: "김테스트", program: "mock_interview", attended: true }),
-  makeApplicant({ id: 2, name: "이테스트", program: "mock_interview", attended: false }),
-  makeApplicant({ id: 3, name: "박샘플", program: "resume_clinic", attended: false }),
+  makeApplicant({ id: 1, name: "김테스트", programId: 3, attended: true }),
+  makeApplicant({ id: 2, name: "이테스트", programId: 3, attended: false }),
+  makeApplicant({ id: 3, name: "박샘플", programId: 2, attended: false }),
 ];
 const ids = (result: { id: number }[]) => result.map((a) => a.id);
 
@@ -15,8 +15,8 @@ test("LOGIC-01 참석 여부로 거른다", () => {
   expect(ids(filterApplicants(list, { ...INITIAL_FILTER, attendance: "absent" }))).toEqual([2, 3]);
 });
 
-test("LOGIC-02 프로그램으로 거른다", () => {
-  expect(ids(filterApplicants(list, { ...INITIAL_FILTER, program: "mock_interview" }))).toEqual([1, 2]);
+test("LOGIC-02 프로그램 번호로 거른다", () => {
+  expect(ids(filterApplicants(list, { ...INITIAL_FILTER, program: 3 }))).toEqual([1, 2]);
 });
 
 test("LOGIC-03 이름 검색(앞뒤 공백 무시)과 여러 조건을 함께 쓴다", () => {
@@ -25,7 +25,7 @@ test("LOGIC-03 이름 검색(앞뒤 공백 무시)과 여러 조건을 함께 �
     ids(
       filterApplicants(list, {
         attendance: "absent",
-        program: "mock_interview",
+        program: 3,
         keyword: "테스",
       }),
     ),

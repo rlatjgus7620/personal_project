@@ -2,11 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ApplicantFilter from "./ApplicantFilter";
 import { INITIAL_FILTER, type ApplicantFilterValue } from "../types/applicant";
+import { TEST_PROGRAMS } from "../test-utils/makeProgram";
 
 function setup(value: ApplicantFilterValue = INITIAL_FILTER) {
   const onChange = jest.fn();
   const user = userEvent.setup();
-  render(<ApplicantFilter value={value} onChange={onChange} />);
+  render(<ApplicantFilter value={value} programs={TEST_PROGRAMS} onChange={onChange} />);
   return { onChange, user };
 }
 
@@ -35,7 +36,7 @@ test("UI-16 미참석을 누르면 attendance만 바뀐 값으로 onChange", asy
 test("UI-17 프로그램 필터에서 모의면접을 고르면 onChange", async () => {
   const { onChange, user } = setup();
   await user.selectOptions(screen.getByLabelText("프로그램 필터"), "모의면접");
-  expect(onChange).toHaveBeenCalledWith({ ...INITIAL_FILTER, program: "mock_interview" });
+  expect(onChange).toHaveBeenCalledWith({ ...INITIAL_FILTER, program: 3 });
 });
 
 test("UI-18 검색창에 입력하면 keyword가 담긴 onChange", async () => {

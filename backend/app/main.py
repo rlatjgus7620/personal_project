@@ -1,9 +1,9 @@
-"""FastAPI 앱의 시작점. 실행: uv run fastapi dev app/main.py
+"""FastAPI 앱의 시작점. 실행: uv run python -m fastapi dev app/main.py
 
 여기서 하는 일
 1) CORS: 화면(localhost:3000)이 이 서버를 부를 수 있게 허락
 2) 에러 형식 통일: 어떤 에러든 { "error": { "code", "message" } } 로 응답
-3) 라우터 등록: /api/applicants
+3) 라우터 등록: /api/programs (v1.2), /api/applicants
 """
 
 from fastapi import FastAPI, Request, status
@@ -12,10 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.errors import DuplicateApplicationError, NotFoundError
-from app.routers import applicants
+from app.errors import AppError
+from app.routers import applicants, programs
+from app.schemas import MSG_PROGRAM_REQUIRED
 
-app = FastAPI(title="교육 프로그램 신청·참석 관리 API", version="0.4.0")
+app = FastAPI(title="교육 프로그램 신청·참석 관리 API", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,8 +25,9 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-# 필드가 빠졌을 때 문구에 쓸 한국어 이름
-FIELD_LABELS = {"name": "이름", "phone": "연락처", "program": "프로그램", "attended": "참석 여부"}
+# 필드가 빠졌을 때 문구에 쓸 한국어 이름 (JSON 이름 기준)
+FIELD_LABELS = {"name": "이름", "phone": "연락처", "attended": "참석 여부"}
+DATE_FIELDS = {"startDate", "endDate"}
 
 
 def error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -45,9 +47,14 @@ def validation_message(errors: list[dict[str, object]]) -> str:
     if first.get("type") == "value_error" and isinstance(ctx, dict) and "error" in ctx:
         return str(ctx["error"])
     if location and location[0] == "path":
-        return "신청자 번호는 숫자여야 합니다."
-    if first.get("type") == "missing" and field in FIELD_LABELS:
-        return f"{FIELD_LABELS[field]} 항목이 필요합니다."
+        return "주소의 번호는 숫자여야 합니다."
+    if first.get("type") == "missing":
+        if field == "programId":
+            return MSG_PROGRAM_REQUIRED
+        if field in FIELD_LABELS:
+            return f"{FIELD_LABELS[field]} 항목이 필요합니다."
+    if field in DATE_FIELDS:
+        return "날짜는 YYYY-MM-DD 형식으로 입력해 주세요."
     return "입력값이 올바르지 않습니다."
 
 
@@ -59,14 +66,10 @@ async def handle_validation_error(_: Request, exc: RequestValidationError) -> JS
     )
 
 
-@app.exception_handler(NotFoundError)
-async def handle_not_found(_: Request, exc: NotFoundError) -> JSONResponse:
-    return error_response(status.HTTP_404_NOT_FOUND, "NOT_FOUND", exc.message)
-
-
-@app.exception_handler(DuplicateApplicationError)
-async def handle_duplicate(_: Request, exc: DuplicateApplicationError) -> JSONResponse:
-    return error_response(status.HTTP_409_CONFLICT, "DUPLICATE_APPLICATION", exc.message)
+@app.exception_handler(AppError)
+async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
+    # errors.py의 모든 에러(404, 409, 업무 규칙 400)를 같은 형식으로
+    return error_response(exc.status_code, exc.code, exc.message)
 
 
 @app.get("/health")
@@ -75,4 +78,5 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+app.include_router(programs.router)
 app.include_router(applicants.router)

@@ -2,13 +2,14 @@ import { render, screen } from "@testing-library/react";
 import ApplicantList from "./ApplicantList";
 import ApplicantSummary from "./ApplicantSummary";
 import { makeApplicant } from "../test-utils/makeApplicant";
+import { TEST_PROGRAMS } from "../test-utils/makeProgram";
 
 const noop = () => {};
 const noopEdit = async () => true;
 
 test("UI-11 0명이면 emptyMessage를 보여준다", () => {
   render(
-    <ApplicantList applicants={[]} emptyMessage="신청자가 없습니다" onToggle={noop} onDelete={noop} onEdit={noopEdit} />,
+    <ApplicantList applicants={[]} programs={TEST_PROGRAMS} emptyMessage="신청자가 없습니다" onToggle={noop} onDelete={noop} onEdit={noopEdit} />,
   );
   expect(screen.getByText("신청자가 없습니다")).toBeInTheDocument();
 });
@@ -20,7 +21,7 @@ test("UI-12 3명이면 목록 항목이 3개", () => {
     makeApplicant({ id: 3, name: "박테스트", phone: "010-3333-3333" }),
   ];
   render(
-    <ApplicantList applicants={list} emptyMessage="신청자가 없습니다" onToggle={noop} onDelete={noop} onEdit={noopEdit} />,
+    <ApplicantList applicants={list} programs={TEST_PROGRAMS} emptyMessage="신청자가 없습니다" onToggle={noop} onDelete={noop} onEdit={noopEdit} />,
   );
   expect(screen.getAllByRole("listitem")).toHaveLength(3);
 });

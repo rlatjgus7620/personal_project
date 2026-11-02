@@ -1,14 +1,10 @@
 "use client";
 
-import {
-  PROGRAMS,
-  type ApplicantFilterValue,
-  type AttendanceFilter,
-  type ProgramCode,
-} from "../types/applicant";
+import type { ApplicantFilterValue, AttendanceFilter, Program } from "../types/applicant";
 
 type Props = {
   value: ApplicantFilterValue;
+  programs: Program[]; // v1.2
   onChange: (value: ApplicantFilterValue) => void;
 };
 
@@ -19,7 +15,7 @@ const ATTENDANCE_OPTIONS: ReadonlyArray<{ value: AttendanceFilter; label: string
   { value: "absent", label: "미참석" },
 ];
 
-export default function ApplicantFilter({ value, onChange }: Props) {
+export default function ApplicantFilter({ value, programs, onChange }: Props) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <div className="flex gap-1" role="group" aria-label="참석 여부 필터">
@@ -42,14 +38,16 @@ export default function ApplicantFilter({ value, onChange }: Props) {
       </div>
       <select
         aria-label="프로그램 필터"
-        value={value.program}
-        onChange={(e) => onChange({ ...value, program: e.target.value as ProgramCode | "all" })}
+        value={String(value.program)}
+        onChange={(e) =>
+          onChange({ ...value, program: e.target.value === "all" ? "all" : Number(e.target.value) })
+        }
         className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
       >
         <option value="all">전체 프로그램</option>
-        {PROGRAMS.map((p) => (
-          <option key={p.code} value={p.code}>
-            {p.label}
+        {programs.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
           </option>
         ))}
       </select>

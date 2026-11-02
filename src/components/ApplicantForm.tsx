@@ -1,16 +1,18 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import { PROGRAMS, type ApplicantInput } from "../types/applicant";
-import { NAME_MAX_LENGTH, isProgramCode, validateApplicant } from "../lib/validation";
+import type { ApplicantInput, Program } from "../types/applicant";
+import { NAME_MAX_LENGTH, toProgramId, validateApplicant } from "../lib/validation";
+import { isFull, programOptionLabel } from "../lib/programs";
 import { formatPhoneInput } from "../lib/format";
 
 type Props = {
+  programs: Program[]; // 신청자 수가 계산된 프로그램 목록 (v1.2)
   // 서버 저장에 성공하면 true를 돌려줌 → 그때만 입력칸을 비움
   onAdd: (input: ApplicantInput) => Promise<boolean>;
 };
 
-export default function ApplicantForm({ onAdd }: Props) {
+export default function ApplicantForm({ programs, onAdd }: Props) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [program, setProgram] = useState("");
@@ -21,14 +23,15 @@ export default function ApplicantForm({ onAdd }: Props) {
   // 버튼 클릭과 Enter 모두 form의 onSubmit 하나로 처리
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const error = validateApplicant({ name, phone, program });
-    if (error !== null || !isProgramCode(program)) {
+    const error = validateApplicant({ name, phone, programId: program });
+    const programId = toProgramId(program);
+    if (error !== null || programId === null) {
       setMessage(error);
       return;
     }
     setMessage(null);
     setSubmitting(true);
-    const ok = await onAdd({ name: name.trim(), phone: phone.trim(), program });
+    const ok = await onAdd({ name: name.trim(), phone: phone.trim(), programId });
     setSubmitting(false);
     if (ok) {
       setName("");
@@ -74,9 +77,10 @@ export default function ApplicantForm({ onAdd }: Props) {
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
         >
           <option value="">선택하세요</option>
-          {PROGRAMS.map((p) => (
-            <option key={p.code} value={p.code}>
-              {p.label}
+          {programs.map((p) => (
+            // 정원이 찬 프로그램은 고를 수 없게
+            <option key={p.id} value={p.id} disabled={isFull(p)}>
+              {programOptionLabel(p)}
             </option>
           ))}
         </select>
@@ -91,6 +95,11 @@ export default function ApplicantForm({ onAdd }: Props) {
       {message && (
         <p role="alert" className="text-sm text-red-600 sm:col-span-4">
           {message}
+        </p>
+      )}
+      {programs.length === 0 && (
+        <p className="text-sm text-amber-700 sm:col-span-4">
+          먼저 프로그램 관리에서 프로그램을 추가해 주세요.
         </p>
       )}
     </form>

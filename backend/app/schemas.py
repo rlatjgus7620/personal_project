@@ -6,18 +6,16 @@
 """
 
 import re
-from datetime import UTC, datetime
-from typing import Literal, get_args
+from datetime import UTC, date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
-# 프로그램 코드 (DB와 API에는 영어 코드, 화면에서만 한국어 이름)
-ProgramCode = Literal["job_search", "resume_clinic", "mock_interview", "career_lecture"]
-PROGRAM_CODES: tuple[str, ...] = get_args(ProgramCode)
-
 NAME_MAX_LENGTH = 20
 PHONE_PATTERN = re.compile(r"^010-\d{4}-\d{4}$")
+PROGRAM_NAME_MAX_LENGTH = 30
+LOCATION_MAX_LENGTH = 50
+CAPACITY_MIN, CAPACITY_MAX = 1, 999
 
 # 에러 문구 (API_SPEC.md와 같음)
 MSG_NAME_REQUIRED = "이름을 입력해 주세요."
@@ -25,6 +23,14 @@ MSG_NAME_TOO_LONG = f"이름은 {NAME_MAX_LENGTH}자 이하로 입력해 주세�
 MSG_PHONE_FORMAT = "연락처는 010-0000-0000 형식으로 입력해 주세요."
 MSG_PROGRAM_REQUIRED = "프로그램을 선택해 주세요."
 MSG_NOTHING_TO_UPDATE = "수정할 항목이 없습니다."
+MSG_PROGRAM_NAME_REQUIRED = "프로그램 이름을 입력해 주세요."
+MSG_PROGRAM_NAME_TOO_LONG = f"프로그램 이름은 {PROGRAM_NAME_MAX_LENGTH}자 이하로 입력해 주세요."
+MSG_LOCATION_TOO_LONG = f"장소는 {LOCATION_MAX_LENGTH}자 이하로 입력해 주세요."
+MSG_CAPACITY_RANGE = f"정원은 {CAPACITY_MIN}~{CAPACITY_MAX}명 사이로 입력해 주세요."
+MSG_PERIOD_ORDER = "종료일은 시작일보다 빠를 수 없습니다."
+
+
+# ---------- 검사 함수 ----------
 
 
 def clean_name(value: str) -> str:
@@ -45,11 +51,53 @@ def check_phone(value: str) -> str:
     return phone
 
 
-def check_program(value: object) -> object:
-    """정해진 4개 코드 중 하나인지 확인 (Literal 기본 에러 대신 우리 문구를 쓰려고 먼저 검사)"""
-    if value is not None and value not in PROGRAM_CODES:
+def check_program_id(value: object) -> object:
+    """비었거나 1보다 작으면 '프로그램을 선택해 주세요.' (실제로 있는지는 저장소가 확인)"""
+    if value is None or value == "" or (isinstance(value, int) and not isinstance(value, bool) and value < 1):
         raise ValueError(MSG_PROGRAM_REQUIRED)
     return value
+
+
+def clean_program_name(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(MSG_PROGRAM_NAME_REQUIRED)
+    name = value.strip()
+    if len(name) > PROGRAM_NAME_MAX_LENGTH:
+        raise ValueError(MSG_PROGRAM_NAME_TOO_LONG)
+    return name
+
+
+def clean_location(value: object) -> str | None:
+    """앞뒤 공백을 자르고, 비었으면 None"""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(MSG_LOCATION_TOO_LONG)
+    location = value.strip()
+    if len(location) > LOCATION_MAX_LENGTH:
+        raise ValueError(MSG_LOCATION_TOO_LONG)
+    return location or None
+
+
+def check_capacity(value: object) -> int | None:
+    """비우면 None(제한 없음), 아니면 1~999 정수"""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError(MSG_CAPACITY_RANGE)
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    if not isinstance(value, int) or not CAPACITY_MIN <= value <= CAPACITY_MAX:
+        raise ValueError(MSG_CAPACITY_RANGE)
+    return value
+
+
+def check_period(start: date | None, end: date | None) -> None:
+    if start is not None and end is not None and end < start:
+        raise ValueError(MSG_PERIOD_ORDER)
+
+
+# ---------- 공통 부모 ----------
 
 
 class CamelModel(BaseModel):
@@ -58,12 +106,105 @@ class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
+def as_utc(value: datetime) -> datetime:
+    # SQLite는 시간대 정보를 버리므로, 시간대가 없으면 UTC로 간주
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+# ---------- 프로그램 (v1.2) ----------
+
+
+class ProgramCreate(CamelModel):
+    """POST /api/programs 요청 본문. 이름만 필수"""
+
+    name: str
+    start_date: date | None = None
+    end_date: date | None = None
+    location: str | None = None
+    capacity: int | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name(cls, value: object) -> str:
+        return clean_program_name(value)
+
+    @field_validator("location", mode="before")
+    @classmethod
+    def _location(cls, value: object) -> str | None:
+        return clean_location(value)
+
+    @field_validator("capacity", mode="before")
+    @classmethod
+    def _capacity(cls, value: object) -> int | None:
+        return check_capacity(value)
+
+    @model_validator(mode="after")
+    def _period(self) -> "ProgramCreate":
+        check_period(self.start_date, self.end_date)
+        return self
+
+
+class ProgramUpdate(CamelModel):
+    """PATCH /api/programs/{id} 요청 본문.
+
+    보낸 항목만 바꿉니다. null을 보내면 그 항목을 비웁니다(이름 제외).
+    "안 보냄"과 "null을 보냄"을 구분하려고 model_fields_set을 씁니다.
+    """
+
+    name: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    location: str | None = None
+    capacity: int | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name(cls, value: object) -> str:
+        return clean_program_name(value)  # 이름은 null로 비울 수 없음
+
+    @field_validator("location", mode="before")
+    @classmethod
+    def _location(cls, value: object) -> str | None:
+        return clean_location(value)
+
+    @field_validator("capacity", mode="before")
+    @classmethod
+    def _capacity(cls, value: object) -> int | None:
+        return check_capacity(value)
+
+    @model_validator(mode="after")
+    def _check(self) -> "ProgramUpdate":
+        if not self.model_fields_set:
+            raise ValueError(MSG_NOTHING_TO_UPDATE)
+        check_period(self.start_date, self.end_date)
+        return self
+
+    def changes(self) -> dict[str, object]:
+        """실제로 보낸 항목만 (null 포함)"""
+        return {field: getattr(self, field) for field in self.model_fields_set}
+
+
+class ProgramOut(CamelModel):
+    """서버가 돌려주는 프로그램 하나. applicant_count는 저장하지 않고 계산한 값"""
+
+    id: int
+    name: str
+    start_date: date | None
+    end_date: date | None
+    location: str | None
+    capacity: int | None
+    applicant_count: int = 0
+
+
+# ---------- 신청자 ----------
+
+
 class ApplicantCreate(CamelModel):
     """POST /api/applicants 요청 본문"""
 
     name: str
     phone: str
-    program: ProgramCode
+    program_id: int
 
     @field_validator("name")
     @classmethod
@@ -75,10 +216,10 @@ class ApplicantCreate(CamelModel):
     def _phone(cls, value: str) -> str:
         return check_phone(value)
 
-    @field_validator("program", mode="before")
+    @field_validator("program_id", mode="before")
     @classmethod
-    def _program(cls, value: object) -> object:
-        return check_program(value)
+    def _program_id(cls, value: object) -> object:
+        return check_program_id(value)
 
 
 class ApplicantUpdate(CamelModel):
@@ -86,7 +227,7 @@ class ApplicantUpdate(CamelModel):
 
     name: str | None = None
     phone: str | None = None
-    program: ProgramCode | None = None
+    program_id: int | None = None
     attended: bool | None = None
 
     @field_validator("name")
@@ -99,14 +240,14 @@ class ApplicantUpdate(CamelModel):
     def _phone(cls, value: str | None) -> str | None:
         return None if value is None else check_phone(value)
 
-    @field_validator("program", mode="before")
+    @field_validator("program_id", mode="before")
     @classmethod
-    def _program(cls, value: object) -> object:
-        return check_program(value)
+    def _program_id(cls, value: object) -> object:
+        return None if value is None else check_program_id(value)
 
     @model_validator(mode="after")
     def _at_least_one(self) -> "ApplicantUpdate":
-        if all(v is None for v in (self.name, self.phone, self.program, self.attended)):
+        if all(v is None for v in (self.name, self.phone, self.program_id, self.attended)):
             raise ValueError(MSG_NOTHING_TO_UPDATE)
         return self
 
@@ -125,7 +266,7 @@ class ApplicantOut(CamelModel):
     id: int
     name: str
     phone: str
-    program: ProgramCode
+    program_id: int
     attended: bool
     created_at: datetime
     updated_at: datetime
@@ -133,5 +274,4 @@ class ApplicantOut(CamelModel):
     @field_validator("created_at", "updated_at")
     @classmethod
     def _as_utc(cls, value: datetime) -> datetime:
-        # SQLite는 시간대 정보를 버리므로, 시간대가 없으면 UTC로 간주
-        return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return as_utc(value)

@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import {
-  PROGRAMS,
-  programLabel,
-  type Applicant,
-  type ApplicantChanges,
-} from "../types/applicant";
+import type { Applicant, ApplicantChanges, Program } from "../types/applicant";
 import { formatDate, formatPhoneInput, maskPhone } from "../lib/format";
-import { NAME_MAX_LENGTH, isProgramCode, validateApplicant } from "../lib/validation";
+import { NAME_MAX_LENGTH, toProgramId, validateApplicant } from "../lib/validation";
+import { isFull, programName, programOptionLabel } from "../lib/programs";
 
 type Props = {
   applicant: Applicant;
+  programs: Program[]; // 프로그램 이름 표시와 수정용 선택지 (v1.2)
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
   // 서버 저장에 성공하면 true → 그때만 수정 칸을 닫음
@@ -20,7 +17,14 @@ type Props = {
   busy?: boolean;
 };
 
-export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, busy = false }: Props) {
+export default function ApplicantItem({
+  applicant,
+  programs,
+  onToggle,
+  onDelete,
+  onEdit,
+  busy = false,
+}: Props) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draft, setDraft] = useState({ name: "", phone: "", program: "" });
@@ -28,7 +32,7 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, b
   const [saving, setSaving] = useState(false);
 
   function startEdit() {
-    setDraft({ name: applicant.name, phone: applicant.phone, program: applicant.program });
+    setDraft({ name: applicant.name, phone: applicant.phone, program: String(applicant.programId) });
     setMessage(null);
     setConfirmingDelete(false);
     setEditing(true);
@@ -41,8 +45,9 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, b
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const error = validateApplicant(draft);
-    if (error !== null || !isProgramCode(draft.program)) {
+    const error = validateApplicant({ name: draft.name, phone: draft.phone, programId: draft.program });
+    const programId = toProgramId(draft.program);
+    if (error !== null || programId === null) {
       setMessage(error);
       return;
     }
@@ -52,7 +57,7 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, b
     const phone = draft.phone.trim();
     if (name !== applicant.name) changes.name = name;
     if (phone !== applicant.phone) changes.phone = phone;
-    if (draft.program !== applicant.program) changes.program = draft.program;
+    if (programId !== applicant.programId) changes.programId = programId;
     if (Object.keys(changes).length === 0) {
       setEditing(false);
       return;
@@ -103,9 +108,10 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, b
             onChange={(e) => setDraft({ ...draft, program: e.target.value })}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2"
           >
-            {PROGRAMS.map((p) => (
-              <option key={p.code} value={p.code}>
-                {p.label}
+            {programs.map((p) => (
+              // 마감된 다른 프로그램으로는 옮길 수 없음 (지금 프로그램은 그대로 선택 가능)
+              <option key={p.id} value={p.id} disabled={p.id !== applicant.programId && isFull(p)}>
+                {programOptionLabel(p)}
               </option>
             ))}
           </select>
@@ -153,7 +159,7 @@ export default function ApplicantItem({ applicant, onToggle, onDelete, onEdit, b
           )}
         </p>
         <p className="text-sm text-slate-600">
-          <span>{programLabel(applicant.program)}</span>
+          <span>{programName(programs, applicant.programId)}</span>
           <span className="mx-1 text-slate-300">|</span>
           <span>{maskPhone(applicant.phone)}</span>
           <span className="mx-1 text-slate-300">|</span>

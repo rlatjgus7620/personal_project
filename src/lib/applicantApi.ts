@@ -1,6 +1,12 @@
 // FastAPI 서버를 부르는 함수 모음. 화면은 fetch를 직접 쓰지 않고 이 함수들만 씁니다.
 
-import type { Applicant, ApplicantChanges, ApplicantInput } from "../types/applicant";
+import type {
+  Applicant,
+  ApplicantChanges,
+  ApplicantInput,
+  Program,
+  ProgramInput,
+} from "../types/applicant";
 
 export const CONNECTION_ERROR_MESSAGE =
   "서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.";
@@ -58,4 +64,30 @@ export function updateApplicant(id: number, changes: ApplicantChanges): Promise<
 
 export function deleteApplicant(id: number): Promise<void> {
   return request<void>(`/api/applicants/${id}`, { method: "DELETE" });
+}
+
+// ---------- 프로그램 (v1.2) ----------
+
+export function fetchPrograms(): Promise<Program[]> {
+  return request<Program[]>("/api/programs");
+}
+
+export function createProgram(input: ProgramInput): Promise<Program> {
+  return request<Program>("/api/programs", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateProgram(id: number, input: Partial<ProgramInput>): Promise<Program> {
+  return request<Program>(`/api/programs/${id}`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteProgram(id: number): Promise<void> {
+  return request<void>(`/api/programs/${id}`, { method: "DELETE" });
 }
