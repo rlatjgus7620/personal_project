@@ -1,24 +1,31 @@
 "use client";
 // 이 페이지는 useState/useEffect(브라우저에서만 동작)와 클릭 이벤트를 쓰므로 "use client"가 필요합니다.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ApplicantFilter from "@/components/ApplicantFilter";
 import ApplicantForm from "@/components/ApplicantForm";
 import ApplicantList from "@/components/ApplicantList";
 import ApplicantSummary from "@/components/ApplicantSummary";
+import AttendanceBook from "@/components/AttendanceBook";
 import ExportButton from "@/components/ExportButton";
 import ProgramManager from "@/components/ProgramManager";
 import ProgramSummary from "@/components/ProgramSummary";
 import {
   createApplicant,
   createProgram,
+  createSession,
   deleteApplicant,
   deleteProgram,
+  deleteSession,
   fetchApplicants,
+  fetchAttendance,
   fetchPrograms,
+  fetchSessions,
+  setAttendance,
   updateApplicant,
   updateProgram,
 } from "@/lib/applicantApi";
+import { applicantSessionStat, hasAttended } from "@/lib/attendance";
 import { filterApplicants, isFilterActive } from "@/lib/filterApplicants";
 import { withApplicantCounts } from "@/lib/programs";
 import {
@@ -27,8 +34,11 @@ import {
   type ApplicantChanges,
   type ApplicantFilterValue,
   type ApplicantInput,
+  type AttendanceRecord,
   type Program,
   type ProgramInput,
+  type Session,
+  type SessionInput,
 } from "@/types/applicant";
 
 function errorText(error: unknown): string {
@@ -38,18 +48,22 @@ function errorText(error: unknown): string {
 export default function ApplicantPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [programList, setProgramList] = useState<Program[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]); // 회차 (v1.3)
+  const [attendance, setAttendanceList] = useState<AttendanceRecord[]>([]); // 출석 기록 (v1.3)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ApplicantFilterValue>(INITIAL_FILTER);
   // 서버 처리 중인 신청자 id 모음 (그 줄의 버튼을 잠가서 두 번 눌리지 않게)
   const [busyIds, setBusyIds] = useState<ReadonlySet<number>>(new Set());
 
-  // 처음 화면이 열릴 때 프로그램과 명단을 함께 불러옴
+  // 처음 화면이 열릴 때 프로그램·명단·회차·출석 기록을 함께 불러옴
   useEffect(() => {
-    Promise.all([fetchPrograms(), fetchApplicants()])
-      .then(([programs, list]) => {
+    Promise.all([fetchPrograms(), fetchApplicants(), fetchSessions(), fetchAttendance()])
+      .then(([programs, list, sessionList, records]) => {
         setProgramList(programs);
         setApplicants(list);
+        setSessions(sessionList);
+        setAttendanceList(records);
       })
       .catch((e: unknown) => setError(errorText(e)))
       .finally(() => setLoading(false));
@@ -57,8 +71,20 @@ export default function ApplicantPage() {
 
   // 프로그램별 신청자 수는 지금 명단으로 다시 계산 (신청·삭제 직후에도 바로 맞게)
   const programs = useMemo(() => withApplicantCounts(programList, applicants), [programList, applicants]);
+  // "참석했는지": 회차가 있는 프로그램은 1회 이상 출석, 없으면 참석 체크 (v1.3)
+  const isAttended = useCallback(
+    (a: Applicant) => hasAttended(a, sessions, attendance),
+    [sessions, attendance],
+  );
+  const sessionStatOf = useCallback(
+    (a: Applicant) => applicantSessionStat(a, sessions, attendance),
+    [sessions, attendance],
+  );
   // 화면에 보여줄 목록은 필터로 "계산"만 함 (따로 state에 저장하지 않음)
-  const visible = useMemo(() => filterApplicants(applicants, filter), [applicants, filter]);
+  const visible = useMemo(
+    () => filterApplicants(applicants, filter, isAttended),
+    [applicants, filter, isAttended],
+  );
 
   // ---------- 신청자 ----------
 
@@ -116,6 +142,7 @@ export default function ApplicantPage() {
     await runBusy(id, async () => {
       await deleteApplicant(id);
       setApplicants((list) => list.filter((a) => a.id !== id));
+      setAttendanceList((list) => list.filter((r) => r.applicantId !== id)); // 서버도 함께 지움
     });
   }
 
@@ -150,8 +177,48 @@ export default function ApplicantPage() {
     try {
       await deleteProgram(id);
       setProgramList((list) => list.filter((p) => p.id !== id));
+      setSessions((list) => list.filter((s) => s.programId !== id)); // 서버도 회차를 함께 지움
       // 지운 프로그램을 필터로 고르고 있었으면 "전체 프로그램"으로
       setFilter((f) => (f.program === id ? { ...f, program: "all" } : f));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  // ---------- 회차·출석 (v1.3) ----------
+
+  async function handleAddSession(programId: number, input: SessionInput): Promise<boolean> {
+    setError(null);
+    try {
+      const created = await createSession(programId, input);
+      setSessions((list) => [...list, created]); // 날짜순 정렬은 출석부가 함
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      return false;
+    }
+  }
+
+  async function handleDeleteSession(sessionId: number) {
+    setError(null);
+    try {
+      await deleteSession(sessionId);
+      setSessions((list) => list.filter((s) => s.id !== sessionId));
+      setAttendanceList((list) => list.filter((r) => r.sessionId !== sessionId));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  // 서버가 저장한 뒤에 화면의 출석 기록을 바꿈
+  async function handleToggleAttendance(sessionId: number, applicantId: number, present: boolean) {
+    setError(null);
+    try {
+      await setAttendance(sessionId, applicantId, present);
+      setAttendanceList((list) => {
+        const rest = list.filter((r) => !(r.sessionId === sessionId && r.applicantId === applicantId));
+        return present ? [...rest, { sessionId, applicantId }] : rest;
+      });
     } catch (e) {
       setError(errorText(e));
     }
@@ -168,10 +235,12 @@ export default function ApplicantPage() {
           <h1 className="text-2xl font-bold text-slate-900">교육 프로그램 신청·참석 관리</h1>
           <p className="text-sm text-slate-500">신청자를 등록하고, 행사 당일 참석을 체크하세요.</p>
         </div>
-        <ApplicantSummary applicants={applicants} />
+        <ApplicantSummary applicants={applicants} isAttended={isAttended} />
       </header>
 
-      {!loading && <ProgramSummary programs={programs} applicants={applicants} />}
+      {!loading && (
+        <ProgramSummary programs={programs} applicants={applicants} sessions={sessions} attendance={attendance} />
+      )}
 
       {error && (
         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -186,13 +255,23 @@ export default function ApplicantPage() {
         onDelete={handleDeleteProgram}
       />
 
+      <AttendanceBook
+        programs={programs}
+        applicants={applicants}
+        sessions={sessions}
+        attendance={attendance}
+        onAddSession={handleAddSession}
+        onDeleteSession={handleDeleteSession}
+        onToggle={handleToggleAttendance}
+      />
+
       <ApplicantForm programs={programs} onAdd={handleAdd} />
 
       <section className="flex flex-col gap-3">
         <ApplicantFilter value={filter} programs={programs} onChange={setFilter} />
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-slate-500">{visible.length}명 표시 중</p>
-          <ExportButton applicants={visible} programs={programs} />
+          <ExportButton applicants={visible} programs={programs} sessions={sessions} attendance={attendance} />
         </div>
         {loading ? (
           <p className="py-10 text-center text-slate-500">불러오는 중...</p>
@@ -205,6 +284,7 @@ export default function ApplicantPage() {
             onDelete={handleDelete}
             onEdit={handleEdit}
             busyIds={busyIds}
+            sessionStatOf={sessionStatOf}
           />
         )}
       </section>

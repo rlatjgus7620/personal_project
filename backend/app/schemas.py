@@ -28,6 +28,9 @@ MSG_PROGRAM_NAME_TOO_LONG = f"프로그램 이름은 {PROGRAM_NAME_MAX_LENGTH}�
 MSG_LOCATION_TOO_LONG = f"장소는 {LOCATION_MAX_LENGTH}자 이하로 입력해 주세요."
 MSG_CAPACITY_RANGE = f"정원은 {CAPACITY_MIN}~{CAPACITY_MAX}명 사이로 입력해 주세요."
 MSG_PERIOD_ORDER = "종료일은 시작일보다 빠를 수 없습니다."
+NOTE_MAX_LENGTH = 30
+MSG_SESSION_DATE_REQUIRED = "회차 날짜를 입력해 주세요."
+MSG_NOTE_TOO_LONG = f"메모는 {NOTE_MAX_LENGTH}자 이하로 입력해 주세요."
 
 
 # ---------- 검사 함수 ----------
@@ -194,6 +197,57 @@ class ProgramOut(CamelModel):
     location: str | None
     capacity: int | None
     applicant_count: int = 0
+
+
+# ---------- 회차·출석 (v1.3) ----------
+
+
+def clean_note(value: object) -> str | None:
+    """앞뒤 공백을 자르고, 비었으면 None"""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(MSG_NOTE_TOO_LONG)
+    note = value.strip()
+    if len(note) > NOTE_MAX_LENGTH:
+        raise ValueError(MSG_NOTE_TOO_LONG)
+    return note or None
+
+
+class SessionCreate(CamelModel):
+    """POST /api/programs/{id}/sessions 요청 본문"""
+
+    session_date: date
+    note: str | None = None
+
+    @field_validator("session_date", mode="before")
+    @classmethod
+    def _date(cls, value: object) -> object:
+        if value is None or value == "":
+            raise ValueError(MSG_SESSION_DATE_REQUIRED)
+        return value
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _note(cls, value: object) -> str | None:
+        return clean_note(value)
+
+
+class SessionOut(CamelModel):
+    """서버가 돌려주는 회차 하나. attendee_count는 계산한 값"""
+
+    id: int
+    program_id: int
+    session_date: date
+    note: str | None
+    attendee_count: int = 0
+
+
+class AttendanceOut(CamelModel):
+    """출석 기록 하나 (줄이 있으면 출석)"""
+
+    session_id: int
+    applicant_id: int
 
 
 # ---------- 신청자 ----------

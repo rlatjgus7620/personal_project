@@ -17,18 +17,26 @@ from app.errors import (
     CapacityTooSmallError,
     DuplicateApplicationError,
     DuplicateProgramError,
+    DuplicateSessionError,
+    HasAttendanceError,
     InvalidPeriodError,
     InvalidProgramError,
+    NotFoundError,
+    NotInProgramError,
     ProgramFullError,
     ProgramInUseError,
+    SessionNotFoundError,
 )
 from app.schemas import (
     ApplicantCreate,
     ApplicantOut,
     ApplicantUpdate,
+    AttendanceOut,
     ProgramCreate,
     ProgramOut,
     ProgramUpdate,
+    SessionCreate,
+    SessionOut,
 )
 
 
@@ -47,7 +55,29 @@ class ApplicantRepository(Protocol):
         ...
 
     def delete_program(self, program_id: int) -> bool:
-        """삭제. 없는 id면 False, 신청자가 있으면 ProgramInUseError"""
+        """삭제(회차도 함께). 없는 id면 False, 신청자가 있으면 ProgramInUseError"""
+        ...
+
+    # ----- 회차·출석 (v1.3) -----
+    def list_sessions(self) -> list[SessionOut]:
+        """전체 회차. 프로그램 번호순, 그 안에서 날짜순. attendee_count 포함"""
+        ...
+
+    def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
+        """회차 추가. 없는 프로그램이면 None, 같은 날짜가 있으면 DuplicateSessionError"""
+        ...
+
+    def delete_session(self, session_id: int) -> bool:
+        """회차 삭제(출석 기록도 함께). 없는 id면 False"""
+        ...
+
+    def list_attendance(self) -> list[AttendanceOut]:
+        """전체 출석 기록"""
+        ...
+
+    def set_attendance(self, session_id: int, applicant_id: int, present: bool) -> None:
+        """출석 체크(True)·해제(False). 여러 번 해도 결과가 같음.
+        없는 회차·신청자는 404 에러, 다른 프로그램 신청자는 NotInProgramError"""
         ...
 
     # ----- 신청자 -----
@@ -60,11 +90,11 @@ class ApplicantRepository(Protocol):
         ...
 
     def update(self, applicant_id: int, data: ApplicantUpdate) -> ApplicantOut | None:
-        """수정. 없는 id면 None. 수정 결과가 중복이거나 정원 초과면 예외"""
+        """수정. 없는 id면 None. 수정 결과가 중복·정원 초과·출석 기록 있는 이동이면 예외"""
         ...
 
     def delete(self, applicant_id: int) -> bool:
-        """삭제. 없는 id면 False"""
+        """삭제(출석 기록도 함께). 없는 id면 False"""
         ...
 
 
@@ -87,6 +117,12 @@ def ensure_capacity_fits(capacity: int | None, applicant_count: int) -> None:
         raise CapacityTooSmallError(applicant_count)
 
 
+def ensure_same_program(session_program_id: int, applicant_program_id: int) -> None:
+    """출석은 그 회차 프로그램의 신청자만 체크할 수 있음"""
+    if session_program_id != applicant_program_id:
+        raise NotInProgramError()
+
+
 def ensure_period(start: date | None, end: date | None) -> None:
     """수정 후 값 기준으로 종료일이 시작일보다 빠르면 InvalidPeriodError"""
     if start is not None and end is not None and end < start:
@@ -102,8 +138,11 @@ class MemoryApplicantRepository:
     def __init__(self) -> None:
         self._programs: list[ProgramOut] = []  # applicant_count는 꺼낼 때 계산
         self._items: list[ApplicantOut] = []
+        self._sessions: list[SessionOut] = []  # attendee_count는 꺼낼 때 계산
+        self._attendance: set[tuple[int, int]] = set()  # (회차 id, 신청자 id)
         self._next_program_id = 1
         self._next_id = 1
+        self._next_session_id = 1
 
     # ----- 내부 도우미 -----
     def _count(self, program_id: int) -> int:
@@ -157,7 +196,56 @@ class MemoryApplicantRepository:
         if self._count(program_id) > 0:
             raise ProgramInUseError()
         self._programs = [p for p in self._programs if p.id != program_id]
+        self._sessions = [s for s in self._sessions if s.program_id != program_id]  # 회차도 함께
         return True
+
+    # ----- 회차·출석 (v1.3) -----
+    def _session_out(self, session: SessionOut) -> SessionOut:
+        count = sum(1 for sid, _ in self._attendance if sid == session.id)
+        return session.model_copy(update={"attendee_count": count})
+
+    def list_sessions(self) -> list[SessionOut]:
+        ordered = sorted(self._sessions, key=lambda s: (s.program_id, s.session_date, s.id))
+        return [self._session_out(s) for s in ordered]
+
+    def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
+        if self._program(program_id) is None:
+            return None
+        if any(s.program_id == program_id and s.session_date == data.session_date for s in self._sessions):
+            raise DuplicateSessionError()
+        session = SessionOut(
+            id=self._next_session_id,
+            program_id=program_id,
+            session_date=data.session_date,
+            note=data.note,
+            attendee_count=0,
+        )
+        self._sessions.append(session)
+        self._next_session_id += 1
+        return session
+
+    def delete_session(self, session_id: int) -> bool:
+        if not any(s.id == session_id for s in self._sessions):
+            return False
+        self._sessions = [s for s in self._sessions if s.id != session_id]
+        self._attendance = {(sid, aid) for sid, aid in self._attendance if sid != session_id}
+        return True
+
+    def list_attendance(self) -> list[AttendanceOut]:
+        return [AttendanceOut(session_id=sid, applicant_id=aid) for sid, aid in sorted(self._attendance)]
+
+    def set_attendance(self, session_id: int, applicant_id: int, present: bool) -> None:
+        session = next((s for s in self._sessions if s.id == session_id), None)
+        if session is None:
+            raise SessionNotFoundError()
+        applicant = next((a for a in self._items if a.id == applicant_id), None)
+        if applicant is None:
+            raise NotFoundError()
+        ensure_same_program(session.program_id, applicant.program_id)
+        if present:
+            self._attendance.add((session_id, applicant_id))
+        else:
+            self._attendance.discard((session_id, applicant_id))
 
     # ----- 신청자 -----
     def list(self) -> list[ApplicantOut]:
@@ -194,6 +282,8 @@ class MemoryApplicantRepository:
             target = self._program(updated.program_id)
             if moving and target is None:
                 raise InvalidProgramError()
+            if moving and any(aid == applicant_id for _, aid in self._attendance):
+                raise HasAttendanceError()  # 출석 기록이 있으면 옮길 수 없음
             if self._is_duplicate(updated.phone, updated.program_id, except_id=applicant_id):
                 raise DuplicateApplicationError()
             if moving and target is not None:
@@ -205,4 +295,5 @@ class MemoryApplicantRepository:
     def delete(self, applicant_id: int) -> bool:
         before = len(self._items)
         self._items = [item for item in self._items if item.id != applicant_id]
+        self._attendance = {(sid, aid) for sid, aid in self._attendance if aid != applicant_id}
         return len(self._items) < before

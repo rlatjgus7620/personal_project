@@ -1,6 +1,7 @@
 // 보고용 계산 (순수 함수): CSV 만들기, 프로그램별 요약
 
-import type { Applicant, Program } from "../types/applicant";
+import type { Applicant, AttendanceRecord, Program, Session } from "../types/applicant";
+import { applicantSessionStat, hasAttended, sessionStatLabel, sessionsOf } from "./attendance";
 import { formatDate } from "./format";
 import { isFull, programName } from "./programs";
 
@@ -18,14 +19,26 @@ function csvCell(value: string | number): string {
   return text;
 }
 
+// 참석 칸: 회차가 있는 프로그램이면 "출석 2/3회", 없으면 "참석"/"미참석" (v1.3)
+function attendanceCell(a: Applicant, sessions: Session[], attendance: AttendanceRecord[]): string {
+  const stat = applicantSessionStat(a, sessions, attendance);
+  if (stat !== null) return sessionStatLabel(stat);
+  return a.attended ? "참석" : "미참석";
+}
+
 // 엑셀에서 한글이 깨지지 않도록 맨 앞에 BOM(﻿)을 붙임
-export function toCsv(applicants: Applicant[], programs: Program[]): string {
+export function toCsv(
+  applicants: Applicant[],
+  programs: Program[],
+  sessions: Session[] = [],
+  attendance: AttendanceRecord[] = [],
+): string {
   const rows = applicants.map((a, index) => [
     index + 1,
     a.name,
     a.phone,
     programName(programs, a.programId),
-    a.attended ? "참석" : "미참석",
+    attendanceCell(a, sessions, attendance),
     formatDate(a.createdAt),
   ]);
   const lines = [CSV_HEADER, ...rows].map((row) => row.map(csvCell).join(","));
@@ -47,15 +60,34 @@ export type ProgramStat = {
   attended: number;
   capacity: number | null;
   full: boolean;
-  rate: number | null; // 참석률(%) 반올림, 신청 0명이면 null
+  sessionCount: number; // 회차 수 (v1.3, 0이면 회차 없는 프로그램)
+  // 참석률(%) 반올림, 신청 0명이면 null
+  // 회차가 있으면 출석률 = 출석 기록 ÷ (신청자 × 회차 수)
+  rate: number | null;
 };
 
 // 프로그램 순서는 받은 그대로 (서버가 만든 순서로 줌)
-export function summarizeByProgram(programs: Program[], applicants: Applicant[]): ProgramStat[] {
+export function summarizeByProgram(
+  programs: Program[],
+  applicants: Applicant[],
+  sessions: Session[] = [],
+  attendance: AttendanceRecord[] = [],
+): ProgramStat[] {
   return programs.map((program) => {
     const members = applicants.filter((a) => a.programId === program.id);
-    const attended = members.filter((a) => a.attended).length;
+    const attended = members.filter((a) => hasAttended(a, sessions, attendance)).length;
     const total = members.length;
+    const sessionIds = new Set(sessionsOf(sessions, program.id).map((s) => s.id));
+    const memberIds = new Set(members.map((a) => a.id));
+    let rate: number | null = null;
+    if (total > 0 && sessionIds.size === 0) {
+      rate = Math.round((attended / total) * 100);
+    } else if (total > 0) {
+      const records = attendance.filter(
+        (r) => sessionIds.has(r.sessionId) && memberIds.has(r.applicantId),
+      ).length;
+      rate = Math.round((records / (total * sessionIds.size)) * 100);
+    }
     return {
       programId: program.id,
       label: program.name,
@@ -63,7 +95,8 @@ export function summarizeByProgram(programs: Program[], applicants: Applicant[])
       attended,
       capacity: program.capacity,
       full: isFull({ ...program, applicantCount: total }),
-      rate: total === 0 ? null : Math.round((attended / total) * 100),
+      sessionCount: sessionIds.size,
+      rate,
     };
   });
 }

@@ -1,10 +1,15 @@
 import {
   createApplicant,
   createProgram,
+  createSession,
   deleteApplicant,
   deleteProgram,
+  deleteSession,
   fetchApplicants,
+  fetchAttendance,
   fetchPrograms,
+  fetchSessions,
+  setAttendance,
   updateApplicant,
   updateProgram,
 } from "./applicantApi";
@@ -94,4 +99,35 @@ test("CLIENT-06 프로그램 API는 /api/programs 주소와 메서드를 쓴다"
   fetchMock = mockFetch(204);
   await deleteProgram(3);
   expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs/3`, { method: "DELETE" });
+});
+
+test("CLIENT-07 회차·출석 API는 주소와 메서드를 지킨다 (체크는 PUT, 해제는 DELETE)", async () => {
+  let fetchMock = mockFetch(200, []);
+  await fetchSessions();
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions`, undefined);
+
+  const input = { sessionDate: "2026-11-10", note: "OT" };
+  fetchMock = mockFetch(201, {});
+  await createSession(3, input);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs/3/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  fetchMock = mockFetch(204);
+  await deleteSession(7);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions/7`, { method: "DELETE" });
+
+  fetchMock = mockFetch(200, []);
+  await fetchAttendance();
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/attendance`, undefined);
+
+  fetchMock = mockFetch(204);
+  await setAttendance(7, 5, true);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions/7/attendees/5`, { method: "PUT" });
+
+  fetchMock = mockFetch(204);
+  await setAttendance(7, 5, false);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions/7/attendees/5`, { method: "DELETE" });
 });

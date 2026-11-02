@@ -1,7 +1,7 @@
 # 교육 프로그램 신청·참석 관리 앱
 
 교육기관 운영 담당자가 프로그램 신청자를 등록하고, 행사 당일 참석을 체크하고, 프로그램별로 골라 보는 웹 앱입니다.
-현재 버전: **v1.2** (프로그램 관리·정원까지)
+현재 버전: **v1.3** (회차별 출석까지)
 
 ![실행 화면](docs/images/screenshot.png)
 
@@ -18,6 +18,7 @@
 - 명단의 연락처는 가운데를 가려서 표시 (`010-****-5678`)
 - 프로그램별 신청·참석 인원과 참석률 카드, 정원이 차면 **마감** 표시
 - 프로그램 관리: 화면에서 프로그램 추가·수정·삭제, 기간·장소·정원 설정 (정원이 차면 신청 막기)
+- 회차 출석부: 여러 날 진행하는 프로그램은 날짜별 회차를 만들고 회차마다 출석 체크, 명단에 "출석 2/3회"와 프로그램 출석률 표시
 - 지금 보이는(필터된) 명단을 엑셀용 CSV로 내려받기 (`신청자명단_YYYYMMDD.csv`, 연락처 전체 포함이라 파일 관리 주의)
 
 ## 기술 스택
@@ -62,6 +63,7 @@ personal_project/
 │  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원, 참석률, 정원·마감
 │  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제 (v1.2)
 │  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원 입력 (v1.2)
+│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·삭제, 회차별 출석 체크 (v1.3)
 │  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
 │  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
@@ -69,29 +71,31 @@ personal_project/
 │  │  ├─ filterApplicants.ts    # 필터 계산
 │  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜·기간 표시
 │  │  ├─ programs.ts            # 프로그램 이름 찾기, 신청자 수·마감 계산 (v1.2)
+│  │  ├─ attendance.ts          # 회차 정렬, 출석 횟수·참석 여부 계산 (v1.3)
 │  │  └─ report.ts              # CSV 만들기, 프로그램별 요약 계산
-│  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램)
-│  └─ test-utils/               # 테스트용 가짜 신청자·프로그램 (makeApplicant, makeProgram)
+│  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램, 회차, 출석)
+│  └─ test-utils/               # 테스트용 가짜 데이터 (makeApplicant, makeProgram, makeSession)
 │
 └─ backend/                     # FastAPI 서버
    ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
-   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리)
+   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
    │  ├─ routers/applicants.py  # /api/applicants 주소별 처리 (GET·POST·PATCH·DELETE)
    │  ├─ routers/programs.py    # /api/programs 주소별 처리 (v1.2)
+   │  ├─ routers/sessions.py    # 회차·출석 주소별 처리 (v1.3)
    │  ├─ schemas.py             # 요청·응답 검사 (Pydantic)
    │  ├─ repository.py          # 저장소 약속(Protocol) + 메모리 저장소
    │  ├─ sql_repository.py      # DB 저장소
    │  ├─ deps.py                # 라우터에 저장소를 넣어 주는 곳 (get_repo)
-   │  ├─ models.py              # DB 테이블 정의 (programs, applicants)
+   │  ├─ models.py              # DB 테이블 정의 (programs, applicants, sessions, attendances)
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
-   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 신청자·프로그램 API)
+   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 신청자·프로그램·회차 API)
 ```
 
 ## 처음 한 번만 준비하기 (Windows PowerShell)

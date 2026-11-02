@@ -9,6 +9,7 @@ export const PROGRAM_NAME_MAX_LENGTH = 30;
 export const LOCATION_MAX_LENGTH = 50;
 export const CAPACITY_MIN = 1;
 export const CAPACITY_MAX = 999;
+export const NOTE_MAX_LENGTH = 30; // 회차 메모 (v1.3)
 
 export const MESSAGES = {
   nameRequired: "이름을 입력해 주세요.",
@@ -20,6 +21,7 @@ export const MESSAGES = {
   locationTooLong: `장소는 ${LOCATION_MAX_LENGTH}자 이하로 입력해 주세요.`,
   capacityRange: `정원은 ${CAPACITY_MIN}~${CAPACITY_MAX}명 사이로 입력해 주세요.`,
   periodOrder: "종료일은 시작일보다 빠를 수 없습니다.",
+  sessionDateRequired: "회차 날짜를 입력해 주세요.",
 } as const;
 
 // 선택칸 값("" 또는 "3")을 프로그램 번호로. 고르지 않았으면 null

@@ -4,6 +4,31 @@ import ExportButton from "./ExportButton";
 import ProgramSummary from "./ProgramSummary";
 import { makeApplicant } from "../test-utils/makeApplicant";
 import { TEST_PROGRAMS, makeProgram } from "../test-utils/makeProgram";
+import { makeSession } from "../test-utils/makeSession";
+
+test("UI-39 회차가 있는 프로그램은 회차 수와 출석률을 보여준다", () => {
+  render(
+    <ProgramSummary
+      programs={[makeProgram({ id: 3, name: "모의면접" })]}
+      applicants={[
+        makeApplicant({ id: 1, programId: 3 }),
+        makeApplicant({ id: 2, programId: 3, phone: "010-2222-3333" }),
+      ]}
+      sessions={[
+        makeSession({ id: 10, programId: 3 }),
+        makeSession({ id: 11, programId: 3, sessionDate: "2026-11-12" }),
+      ]}
+      attendance={[
+        { sessionId: 10, applicantId: 1 },
+        { sessionId: 11, applicantId: 1 },
+        { sessionId: 10, applicantId: 2 },
+      ]}
+    />,
+  );
+  const card = screen.getByRole("article", { name: "모의면접" });
+  expect(within(card).getByText("신청 2명 · 회차 2개")).toBeInTheDocument();
+  expect(within(card).getByText("출석률 75%")).toBeInTheDocument();
+});
 
 test("UI-28 프로그램별 신청·참석 인원, 정원, 참석률, 마감을 보여준다", () => {
   render(

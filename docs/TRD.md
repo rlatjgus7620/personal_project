@@ -53,6 +53,7 @@ personal_project/
 │  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원, 참석률, 정원·마감
 │  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제 (v1.2)
 │  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원 입력 (v1.2)
+│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·삭제, 회차별 출석 체크 (v1.3)
 │  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
 │  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
@@ -60,29 +61,31 @@ personal_project/
 │  │  ├─ filterApplicants.ts    # 필터 계산
 │  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜·기간 표시
 │  │  ├─ programs.ts            # 프로그램 이름 찾기, 신청자 수·마감 계산 (v1.2)
+│  │  ├─ attendance.ts          # 회차 정렬, 출석 횟수·참석 여부 계산 (v1.3)
 │  │  └─ report.ts              # CSV 만들기, 프로그램별 요약 계산
-│  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램)
-│  └─ test-utils/               # 테스트용 가짜 신청자·프로그램 (makeApplicant, makeProgram)
+│  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램, 회차, 출석)
+│  └─ test-utils/               # 테스트용 가짜 데이터 (makeApplicant, makeProgram, makeSession)
 │
 └─ backend/                     # FastAPI 서버
    ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
-   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리)
+   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
    │  ├─ routers/applicants.py  # /api/applicants 주소별 처리 (GET·POST·PATCH·DELETE)
    │  ├─ routers/programs.py    # /api/programs 주소별 처리 (v1.2)
+   │  ├─ routers/sessions.py    # 회차·출석 주소별 처리 (v1.3)
    │  ├─ schemas.py             # 요청·응답 검사 (Pydantic)
    │  ├─ repository.py          # 저장소 약속(Protocol) + 메모리 저장소
    │  ├─ sql_repository.py      # DB 저장소
    │  ├─ deps.py                # 라우터에 저장소를 넣어 주는 곳 (get_repo)
-   │  ├─ models.py              # DB 테이블 정의 (programs, applicants)
+   │  ├─ models.py              # DB 테이블 정의 (programs, applicants, sessions, attendances)
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
-   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 신청자·프로그램 API)
+   └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 신청자·프로그램·회차 API)
 ```
 
 ## 3. 데이터 흐름 — "등록" 버튼을 누르고 DB에 저장되기까지
@@ -116,6 +119,7 @@ v1.2부터 7번 단계에서 **프로그램이 있는지, 정원이 찼는지**�
 - FastAPI 기본 422 검증 에러 → 400 `VALIDATION_ERROR`로 바꾼다.
 - 없는 id → 404 `NOT_FOUND`, 중복 신청 → 409 `DUPLICATE_APPLICATION`
 - v1.2: 정원 초과 → 409 `PROGRAM_FULL`, 프로그램 이름 중복 → 409 `DUPLICATE_PROGRAM`, 신청자가 있는 프로그램 삭제 → 409 `PROGRAM_IN_USE`
+- v1.3: 같은 날짜 회차 → 409 `DUPLICATE_SESSION`, 출석 기록이 있는 신청자를 다른 프로그램으로 옮김 → 409 `HAS_ATTENDANCE`, 다른 프로그램 신청자 출석 체크 → 400
 - 이런 에러는 모두 `errors.py`의 `AppError`를 물려받고(상태 코드·코드·문구를 가짐), `main.py`의 핸들러 하나가 같은 형식으로 응답한다. 새 규칙이 생겨도 에러 클래스만 하나 추가하면 된다.
 - 화면은 서버의 `error.message`를 그대로 사용자에게 보여준다.
 - 서버에 연결조차 안 되면 "서버에 연결할 수 없습니다..." 문구를 보여준다.

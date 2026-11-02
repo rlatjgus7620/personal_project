@@ -15,6 +15,7 @@
 | VAL-05 | ApplicantUpdate | `attended`만, `name`만 → 통과 / 빈 객체 → 실패 | | F-04, F-10 |
 | VAL-06 | ApplicantOut | JSON으로 바꾸기 | 키가 `programId`, `createdAt`, `updatedAt` (camelCase) | F-03 |
 | VAL-07 | ProgramCreate | 이름 `" 모의면접 "`, 장소 `"  "`, 정원 10 → 통과(이름 공백 제거, 장소 `None`) / 빈 이름, 31자, 정원 0·1000, 장소 51자, 종료일 < 시작일 → 실패 | | F-13, F-14 |
+| VAL-09 | SessionCreate | 날짜 + 메모 `" OT "` → 통과(메모 `"OT"`), 메모 `"  "` → `None` / 날짜 없음, 메모 31자 → 실패 | | F-15 |
 | VAL-08 | ProgramUpdate | `{"capacity": null}` → 통과(정원 비우기로 기록됨) / `{}`, `{"name": null}` → 실패 | | F-13, F-14 |
 
 ## 2. 백엔드 — 저장소 (test_repository.py, test_sql_repository.py)
@@ -34,6 +35,11 @@
 | REPO-09 | 신청자가 있는 프로그램 삭제 / 없는 프로그램 삭제 | `ProgramInUseError` / `True` | F-13 |
 | REPO-10 | 없는 프로그램 번호로 신청 등록 | `InvalidProgramError` | F-02 |
 | REPO-11 | 프로그램 목록의 `applicant_count` | 그 프로그램의 신청자 수와 같음 | F-14 |
+| REPO-12 | 회차 2개를 날짜 역순으로 추가 → 목록, 같은 날짜 추가, 없는 프로그램에 추가 | 날짜순 / `DuplicateSessionError` / `None` | F-15 |
+| REPO-13 | 출석 체크 → 다시 체크 → 해제 | 기록 1개(두 번 체크해도 1개), `attendee_count` 1 → 해제 후 0 | F-16 |
+| REPO-14 | 다른 프로그램 신청자 체크 / 없는 회차 / 없는 신청자 | `NotInProgramError` / `SessionNotFoundError` / `NotFoundError` | F-16 |
+| REPO-15 | 회차 삭제, 신청자 삭제, (신청자 없는) 프로그램 삭제 | 각각 관련 출석 기록·회차도 지워짐 | F-15, F-16 |
+| REPO-16 | 출석 기록이 있는 신청자를 다른 프로그램으로 옮김 / 기록 없는 신청자 옮김 | `HasAttendanceError` / 통과 | F-16 |
 
 ## 3. 백엔드 — API (backend/tests/test_applicants_api.py, test_programs_api.py)
 
@@ -65,6 +71,12 @@
 | API-22 | DELETE /api/programs/{id} | 신청자 있음 / 없음 / 999 | 409 `PROGRAM_IN_USE` / 204 / 404 | F-13 |
 | API-23 | POST /api/applicants | 정원 1명 프로그램에 2번째 신청 | 409 `PROGRAM_FULL` "정원이 가득 찼습니다. (정원 1명)" | F-14 |
 | API-24 | PATCH /api/applicants/{id} | 마감된 다른 프로그램으로 옮김 | 409 `PROGRAM_FULL` | F-14 |
+| API-25 | POST /api/programs/{id}/sessions | 바른 입력 / 날짜 없음 / 같은 날짜 / 없는 프로그램 | 201 `attendeeCount=0` / 400 "회차 날짜를 입력해 주세요." / 409 `DUPLICATE_SESSION` / 404 | F-15 |
+| API-26 | GET /api/sessions | 두 프로그램에 회차, 날짜를 섞어서 추가 | 프로그램 번호순, 그 안에서 날짜순, 키 `programId`·`sessionDate`·`note`·`attendeeCount` | F-15 |
+| API-27 | PUT·DELETE /api/sessions/{id}/attendees/{applicantId}, GET /api/attendance | 체크 두 번 → 해제 두 번 | 모두 204, 체크 후 기록 1개, 해제 후 0개 | F-16 |
+| API-28 | PUT /api/sessions/{id}/attendees/{applicantId} | 다른 프로그램 신청자 / 없는 회차 / 없는 신청자 | 400 "이 회차 프로그램의 신청자가 아닙니다." / 404 "회차를 찾을 수 없습니다." / 404 | F-16 |
+| API-29 | DELETE /api/sessions/{id} | 출석 기록 있는 회차 / 없는 회차 | 204, 이후 출석 기록도 없음 / 404 | F-15 |
+| API-30 | PATCH /api/applicants/{id} | 출석 기록이 있는데 `programId` 바꿈 | 409 `HAS_ATTENDANCE` | F-16 |
 
 ## 4. 프런트 — 순수 함수 (src/lib/*.test.ts)
 
@@ -83,6 +95,10 @@
 | LOGIC-11 | summarizeByProgram | 프로그램 2개(정원 10, 제한 없음), 한쪽 3명 중 2명 참석 | 받은 순서대로, 67%, 정원·마감 여부 포함, 0명은 참석률 `null` | F-12, F-14 |
 | LOGIC-12 | validateProgram | 빈 이름 / 31자 / 장소 51자 / 정원 `0`·`1000`·`1.5` / 종료일 < 시작일 / 정상 | 각 문구 (API_SPEC과 같음) / `null` | F-13, F-14 |
 | LOGIC-13 | formatPeriod | (null, null) / (11-10, null) / (11-10, 11-10) / (11-10, 11-12) | `기간 미정` / `2026.11.10` / `2026.11.10` / `2026.11.10 ~ 2026.11.12` | F-13 |
+| LOGIC-15 | sessionsOf, sessionTitle | 날짜가 섞인 회차 | 그 프로그램 것만 날짜순, `1회차 · 2026.11.10 (OT)`, 메모 없으면 괄호 없음 | F-15 |
+| LOGIC-16 | applicantSessionStat, hasAttended | 회차 3개 중 2번 출석 / 회차 없는 프로그램 | `{ attended: 2, total: 3 }`·`true` / `null`·`attended` 값 그대로 | F-16 |
+| LOGIC-17 | summarizeByProgram (회차) | 신청자 2명 × 회차 2개, 출석 기록 3개 | `sessionCount` 2, 출석률 75%, "참석한 사람"은 1회 이상 출석한 사람 수 | F-12, F-16 |
+| LOGIC-18 | toCsv (회차) | 회차 프로그램 신청자 | 참석 칸이 `출석 2/3회` | F-11, F-16 |
 | LOGIC-14 | withApplicantCounts, isFull, programOptionLabel | 정원 2에 2명 / 정원 없음 | `applicantCount` 다시 계산, 마감 `true`·문구 `(마감)` / `false`·이름만 | F-14 |
 
 ## 5. 프런트 — API 호출 (src/lib/applicantApi.test.ts)
@@ -97,6 +113,7 @@
 | CLIENT-04 | deleteApplicant | `DELETE`, 204 응답에서 JSON을 읽지 않음 |
 | CLIENT-05 | 공통 | 서버가 400/404/409를 주면 `error.message`를 담은 Error를 던짐 |
 | CLIENT-06 | fetchPrograms, createProgram, updateProgram, deleteProgram | `/api/programs` 주소, 메서드, 본문이 명세와 같음 |
+| CLIENT-07 | fetchSessions, createSession, deleteSession, fetchAttendance, setAttendance | 회차·출석 주소와 메서드 (체크는 PUT, 해제는 DELETE) |
 
 ## 6. 프런트 — 컴포넌트 (src/components/*.test.tsx)
 
@@ -139,6 +156,12 @@
 | UI-35 | ProgramManager | 신청자 없는 프로그램 삭제 → **삭제 확인** | 확인 문구 후 `onDelete(id)` | F-13 |
 | UI-36 | ApplicantForm | 정원 2에 2명인 프로그램 | 선택지에 "(마감)", 선택할 수 없음(disabled). 정원 10에 3명이면 "(3/10명)" | F-14 |
 | UI-37 | ApplicantForm | 프로그램 0개 | "먼저 프로그램 관리에서 프로그램을 추가해 주세요." | F-13 |
+| UI-38 | ApplicantItem | `sessionStat` = 2/3 | "출석 2/3회" 표시, 참석 체크박스 없음 | F-16 |
+| UI-39 | ProgramSummary | 회차 2개 프로그램, 신청 2명, 출석 기록 3개 | "신청 2명 · 회차 2개", "출석률 75%" | F-12, F-16 |
+| UI-40 | AttendanceBook | 회차 없는 프로그램 → 날짜·메모 넣고 **회차 추가** / 날짜 없이 추가 | 안내 문구, `onAddSession(프로그램 id, { sessionDate, note })` / "회차 날짜를 입력해 주세요." | F-15 |
+| UI-41 | AttendanceBook | 회차 2개, 신청자 2명, 1회차에 1명 출석 | 1회차 버튼 `aria-pressed`, 제목 "… 출석 1/2명", 출석한 사람만 체크, 체크박스 누르면 `onToggle(회차, 신청자, 반대 상태)` | F-16 |
+| UI-42 | AttendanceBook | 2회차 고르고 **2회차 삭제** → **삭제 확인** | 확인 문구 후 `onDeleteSession(2회차 id)` | F-15 |
+| UI-43 | AttendanceBook | "출석부 프로그램"에서 다른 프로그램 고름 | 그 프로그램의 회차·신청자로 바뀜 | F-15, F-16 |
 
 ## 7. 직접 해 보는 확인 (브라우저)
 
@@ -148,6 +171,7 @@
 | MAN-02 | 백엔드를 끄고 새로고침 | 연결 실패 문구, 화면이 깨지지 않음 | — |
 | MAN-03 | 375px 모바일 보기 | 깨지지 않음 | — |
 | MAN-04 | v1.1 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.2) | 프로그램 4개가 생기고, 기존 신청자가 원래 프로그램에 그대로 연결됨 | F-07, F-13 |
+| MAN-05 | v1.2 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.3) | 회차·출석 테이블이 생기고, 기존 신청자·참석 체크는 그대로 | F-07, F-16 |
 
 ## 기능 ↔ 테스트 연결 확인
 
@@ -166,4 +190,6 @@
 | F-11 CSV 내보내기 | LOGIC-09~10, UI-29~30 |
 | F-12 프로그램별 요약 | LOGIC-11, UI-28 |
 | F-13 프로그램 관리 | VAL-07~08, REPO-06, REPO-09, API-17~20, API-22, LOGIC-12~13, CLIENT-06, UI-31~35, UI-37, MAN-04 |
+| F-15 회차 관리 | VAL-09, REPO-12, REPO-15, API-25~26, API-29, LOGIC-15, CLIENT-07, UI-40, UI-42~43 |
+| F-16 회차별 출석 | REPO-13~16, API-27~28, API-30, LOGIC-16~18, CLIENT-07, UI-38~39, UI-41, UI-43, MAN-05 |
 | F-14 정원 관리 | VAL-07~08, REPO-07~08, REPO-11, API-21, API-23~24, LOGIC-11~12, LOGIC-14, UI-28, UI-32, UI-36 |

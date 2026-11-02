@@ -1,4 +1,4 @@
-import type { Applicant, ApplicantChanges, Program } from "../types/applicant";
+import type { Applicant, ApplicantChanges, Program, SessionStat } from "../types/applicant";
 import ApplicantItem from "./ApplicantItem";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   onDelete: (id: number) => void;
   onEdit: (id: number, changes: ApplicantChanges) => Promise<boolean>;
   busyIds?: ReadonlySet<number>; // 서버 처리 중인 신청자 id
+  sessionStatOf?: (a: Applicant) => SessionStat | null; // 회차 출석 횟수 (v1.3)
 };
 
 export default function ApplicantList({
@@ -19,6 +20,7 @@ export default function ApplicantList({
   onDelete,
   onEdit,
   busyIds,
+  sessionStatOf,
 }: Props) {
   if (applicants.length === 0) {
     return <p className="py-10 text-center text-slate-500">{emptyMessage}</p>;
@@ -34,6 +36,7 @@ export default function ApplicantList({
           onDelete={onDelete}
           onEdit={onEdit}
           busy={busyIds?.has(applicant.id) ?? false}
+          sessionStat={sessionStatOf?.(applicant) ?? null}
         />
       ))}
     </ul>

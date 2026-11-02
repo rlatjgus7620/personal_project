@@ -3,25 +3,38 @@
 from datetime import date
 from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import (
     DuplicateApplicationError,
     DuplicateProgramError,
+    DuplicateSessionError,
+    HasAttendanceError,
     InvalidProgramError,
+    NotFoundError,
     ProgramInUseError,
+    SessionNotFoundError,
 )
-from app.models import Applicant, Program
-from app.repository import ensure_capacity_fits, ensure_period, ensure_seat, now_utc
+from app.models import Applicant, Attendance, Program, Session as SessionRow
+from app.repository import (
+    ensure_capacity_fits,
+    ensure_period,
+    ensure_same_program,
+    ensure_seat,
+    now_utc,
+)
 from app.schemas import (
     ApplicantCreate,
     ApplicantOut,
     ApplicantUpdate,
+    AttendanceOut,
     ProgramCreate,
     ProgramOut,
     ProgramUpdate,
+    SessionCreate,
+    SessionOut,
 )
 
 
@@ -57,6 +70,10 @@ class SqlApplicantRepository:
         )
         if except_id is not None:
             query = query.where(Applicant.id != except_id)
+        return self._session.scalar(query) is not None
+
+    def _has_attendance(self, applicant_id: int) -> bool:
+        query = select(Attendance.session_id).where(Attendance.applicant_id == applicant_id)
         return self._session.scalar(query) is not None
 
     def _commit(self, error: Exception) -> None:
@@ -107,9 +124,78 @@ class SqlApplicantRepository:
             return False
         if self._count(program_id) > 0:
             raise ProgramInUseError()
+        # 신청자가 없으므로 출석 기록도 없음 → 회차만 함께 지움
+        self._session.execute(delete(SessionRow).where(SessionRow.program_id == program_id))
         self._session.delete(row)
         self._commit(ProgramInUseError())
         return True
+
+    # ----- 회차·출석 (v1.3) -----
+    def _session_out(self, row: SessionRow) -> SessionOut:
+        query = select(func.count()).select_from(Attendance).where(Attendance.session_id == row.id)
+        return SessionOut(
+            id=row.id,
+            program_id=row.program_id,
+            session_date=row.session_date,
+            note=row.note,
+            attendee_count=int(self._session.scalar(query) or 0),
+        )
+
+    def list_sessions(self) -> list[SessionOut]:
+        rows = self._session.scalars(
+            select(SessionRow).order_by(SessionRow.program_id, SessionRow.session_date, SessionRow.id)
+        )
+        return [self._session_out(row) for row in rows]
+
+    def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
+        if self._session.get(Program, program_id) is None:
+            return None
+        exists = self._session.scalar(
+            select(SessionRow.id).where(
+                SessionRow.program_id == program_id, SessionRow.session_date == data.session_date
+            )
+        )
+        if exists is not None:
+            raise DuplicateSessionError()
+        row = SessionRow(
+            program_id=program_id, session_date=data.session_date, note=data.note, created_at=now_utc()
+        )
+        self._session.add(row)
+        self._commit(DuplicateSessionError())
+        self._session.refresh(row)
+        return self._session_out(row)
+
+    def delete_session(self, session_id: int) -> bool:
+        row = self._session.get(SessionRow, session_id)
+        if row is None:
+            return False
+        self._session.execute(delete(Attendance).where(Attendance.session_id == session_id))
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
+    def list_attendance(self) -> list[AttendanceOut]:
+        rows = self._session.scalars(
+            select(Attendance).order_by(Attendance.session_id, Attendance.applicant_id)
+        )
+        return [AttendanceOut(session_id=r.session_id, applicant_id=r.applicant_id) for r in rows]
+
+    def set_attendance(self, session_id: int, applicant_id: int, present: bool) -> None:
+        session_row = self._session.get(SessionRow, session_id)
+        if session_row is None:
+            raise SessionNotFoundError()
+        applicant = self._session.get(Applicant, applicant_id)
+        if applicant is None:
+            raise NotFoundError()
+        ensure_same_program(session_row.program_id, applicant.program_id)
+        record = self._session.get(Attendance, (session_id, applicant_id))
+        if present and record is None:
+            self._session.add(
+                Attendance(session_id=session_id, applicant_id=applicant_id, checked_at=now_utc())
+            )
+        elif not present and record is not None:
+            self._session.delete(record)
+        self._session.commit()
 
     # ----- 신청자 -----
     def list(self) -> list[ApplicantOut]:
@@ -150,6 +236,8 @@ class SqlApplicantRepository:
         target = self._session.get(Program, program_id) if moving else None
         if moving and target is None:
             raise InvalidProgramError()
+        if moving and self._has_attendance(applicant_id):
+            raise HasAttendanceError()  # 출석 기록이 있으면 옮길 수 없음
         if self._is_duplicate(phone, program_id, except_id=applicant_id):
             raise DuplicateApplicationError()
         if target is not None:
@@ -165,6 +253,7 @@ class SqlApplicantRepository:
         row = self._session.get(Applicant, applicant_id)
         if row is None:
             return False
+        self._session.execute(delete(Attendance).where(Attendance.applicant_id == applicant_id))
         self._session.delete(row)
         self._session.commit()
         return True

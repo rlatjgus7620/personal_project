@@ -10,6 +10,7 @@ ApplicantPage (app/page.tsx)       : 데이터와 상태를 가진 "지휘자"
 ├─ ProgramSummary           (v1.1) : 프로그램별 신청·참석 인원, 참석률, 정원·마감 (v1.2)
 ├─ ProgramManager           (v1.2) : 프로그램 목록·추가·수정·삭제 (접었다 펴는 칸)
 │  └─ ProgramForm           (v1.2) : 프로그램 이름·시작일·종료일·장소·정원 입력
+├─ AttendanceBook         (v1.3) : 회차 출석부 — 프로그램·회차 고르기, 회차 추가·삭제, 출석 체크 (접었다 펴는 칸)
 ├─ ApplicantForm                   : 이름 + 연락처 + 프로그램 + 등록 버튼
 ├─ ApplicantFilter          (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름 검색
 ├─ ExportButton             (v1.1) : 지금 보이는 명단을 CSV로 저장
@@ -18,6 +19,8 @@ ApplicantPage (app/page.tsx)       : 데이터와 상태를 가진 "지휘자"
 ```
 
 원칙: **데이터를 바꾸는 일(API 호출)은 페이지만 한다.** 부품들은 화면을 그리고, 사용자가 무엇을 했는지 `onAdd`, `onToggle` 같은 함수로 페이지에 알리기만 한다.
+
+v1.3부터 페이지는 회차(`GET /api/sessions`)와 출석 기록(`GET /api/attendance`)도 함께 불러온다. 신청자별 "출석 2/3회", 프로그램 출석률은 `lib/attendance.ts`의 순수 함수로 계산한다.
 
 v1.2부터 프로그램 목록은 코드에 고정하지 않고 서버(`GET /api/programs`)에서 받아 온다. 각 프로그램의 신청자 수(`applicantCount`)는 페이지가 지금 명단으로 다시 계산해서(`withApplicantCounts`) 부품들에 넘긴다. 그래서 신청·삭제 직후에도 숫자가 바로 맞는다.
 
@@ -43,12 +46,24 @@ type ApplicantFilterValue = {
 
 "마감"의 뜻: `capacity`가 있고 `applicantCount >= capacity` (`isFull()`)
 
+```ts
+// v1.3
+type Session = { id: number; programId: number; sessionDate: string; note: string | null; attendeeCount: number };
+type AttendanceRecord = { sessionId: number; applicantId: number };   // 줄이 있으면 출석
+type SessionInput = { sessionDate: string; note: string | null };
+type SessionStat = { attended: number; total: number };               // 출석 횟수 / 회차 수
+```
+
+"참석한 사람"의 뜻(v1.3, `hasAttended()`): 회차가 없는 프로그램이면 `attended`, 회차가 있는 프로그램이면 1회 이상 출석.
+ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 뜻을 쓴다.
+
 ## 3. 컴포넌트별 명세
 
 ### ApplicantSummary
 | Props | 타입 |
 |---|---|
 | `applicants` | `Applicant[]` |
+| `isAttended` | `(a: Applicant) => boolean` (선택, 기본 `a.attended`, v1.3) |
 
 - 전체 명단(필터 전) 기준으로 `전체 {N}명 · 참석 {M}명`을 표시한다.
 
@@ -86,6 +101,7 @@ type ApplicantFilterValue = {
 | `onDelete` | `(id: number) => void` | 〃 |
 | `onEdit` | `(id: number, changes: ApplicantChanges) => Promise<boolean>` | 〃 (v0.4) |
 | `busyIds` | `ReadonlySet<number>` | 서버 처리 중인 신청자 id. 해당 ApplicantItem에 `busy`로 전달 |
+| `sessionStatOf` | `(a: Applicant) => SessionStat \| null` (선택, v1.3) | ApplicantItem의 `sessionStat`으로 전달 |
 
 - 0명이면 `emptyMessage`를 보여준다. (페이지가 상황에 따라 "신청자가 없습니다" 또는 "조건에 맞는 신청자가 없습니다"를 넘긴다)
 - 목록은 `ul`/`li`, key는 `applicant.id`
@@ -99,12 +115,14 @@ type ApplicantFilterValue = {
 | `onDelete` | `(id: number) => void` | |
 | `onEdit` | `(id: number, changes: ApplicantChanges) => Promise<boolean>` | 서버 저장에 성공하면 `true` |
 | `busy` | `boolean` (기본 `false`) | 서버 처리 중이면 `true` |
+| `sessionStat` | `SessionStat \| null` (선택, v1.3) | 회차가 있는 프로그램이면 출석 횟수. 있으면 체크박스 대신 "출석 2/3회" 표시 |
 
 **보기 모드**
 
 | 요소 | 내용 / 접근 이름 |
 |---|---|
-| 체크박스 | `{이름} 참석` |
+| 체크박스 | `{이름} 참석` (회차 없는 프로그램만) |
+| 출석 횟수 (v1.3) | 회차 있는 프로그램이면 체크박스 자리에 `출석 {M}/{N}회`. 1회 이상이면 초록 배경 |
 | 이름 | 그대로 |
 | 프로그램 | 프로그램 이름 (`programName()`, 목록에 없으면 "알 수 없는 프로그램") |
 | 연락처 | 가운데를 가린 값 (예: `010-****-5678`). 전체 번호는 화면에 나오지 않음 |
@@ -146,6 +164,8 @@ type ApplicantFilterValue = {
 | `programs` | `Program[]` (v1.2) |
 | `onChange` | `(value: ApplicantFilterValue) => void` |
 
+참석/미참석 계산은 페이지가 `filterApplicants(applicants, filter, hasAttended)`로 한다 (v1.3).
+
 | 요소 | 내용 |
 |---|---|
 | 참석 여부 버튼 3개 | 전체(`all`) / 참석(`attended`) / 미참석(`absent`). 선택된 버튼은 `aria-pressed="true"` |
@@ -162,7 +182,8 @@ type ApplicantFilterValue = {
 | `applicants` | `Applicant[]` (필터 전 전체 명단) |
 
 - 프로그램마다 카드 하나 (서버에서 받은 순서). 신청자가 0명인 프로그램도 보여준다.
-- 카드 내용: 프로그램 이름, 정원이 있으면 `신청 {N}/{정원}명 · 참석 {M}명`, 없으면 `신청 {N}명 · 참석 {M}명`, `참석률 {P}%` (신청 0명이면 `참석률 -`)
+- v1.3: `sessions`, `attendance` Props(선택)를 받는다. 회차가 있는 프로그램 카드는 `신청 {N}명 · 회차 {K}개`(정원이 있으면 `신청 {N}/{정원}명 · 회차 {K}개`), `출석률 {P}%` (= 출석 기록 ÷ (신청자 × 회차 수)). 신청 0명이면 `출석률 -`
+- 카드 내용(회차 없는 프로그램): 프로그램 이름, 정원이 있으면 `신청 {N}/{정원}명 · 참석 {M}명`, 없으면 `신청 {N}명 · 참석 {M}명`, `참석률 {P}%` (신청 0명이면 `참석률 -`)
 - 마감이면 이름 옆에 **마감** 표시 (v1.2)
 - 프로그램이 하나도 없으면 카드 대신 "등록된 프로그램이 없습니다"
 - 참석률은 소수점 없이 반올림. 계산은 `summarizeByProgram()` 순수 함수가 한다.
@@ -203,6 +224,29 @@ type ApplicantFilterValue = {
 - 보내기 전에 `validateProgram()`으로 검사하고, 문제가 있으면 첫 문구를 `role="alert"`로 보여주고 보내지 않는다. 문구는 API_SPEC과 같다.
 - `onSubmit`이 `true`면: 추가 폼은 입력칸을 비우고, 수정 폼은 그대로 둔다(부모가 닫음). `false`면 입력값을 유지한다.
 
+### AttendanceBook (v1.3)
+| Props | 타입 | 설명 |
+|---|---|---|
+| `programs` | `Program[]` | |
+| `applicants` | `Applicant[]` | 전체 명단 |
+| `sessions` | `Session[]` | 전체 회차 |
+| `attendance` | `AttendanceRecord[]` | 전체 출석 기록 |
+| `onAddSession` | `(programId: number, input: SessionInput) => Promise<boolean>` | 성공하면 `true` |
+| `onDeleteSession` | `(sessionId: number) => void` | |
+| `onToggle` | `(sessionId: number, applicantId: number, present: boolean) => void` | 출석 체크(`true`)·해제(`false`) |
+
+- `<details>`로 감싸 평소에는 접어 둔다. 제목: `회차 출석부`
+- **프로그램 선택** (접근 이름 "출석부 프로그램"): 처음에는 첫 프로그램. 프로그램이 없으면 "먼저 프로그램 관리에서 프로그램을 추가해 주세요."
+- **회차 버튼들**: 그 프로그램 회차를 날짜순으로 `1회차 11.10`, `2회차 11.12`… 고른 회차는 `aria-pressed="true"`. 처음에는 첫 회차, 회차를 추가하면 새 회차를 고른다.
+- 회차가 없으면 "회차를 추가하면 이 프로그램은 출석부에서 회차별로 출석을 체크합니다."
+- **회차 추가 폼**: 날짜 입력(접근 이름 "회차 날짜", 필수) + 메모 입력("회차 메모", 30자) + **회차 추가** 버튼. 날짜가 비면 "회차 날짜를 입력해 주세요."
+- **고른 회차 보기**:
+  - 제목: `1회차 · 2026.11.10 (OT) · 출석 {M}/{N}명` (N = 그 프로그램 신청자 수)
+  - **회차 삭제** 버튼(`{N}회차 삭제`) → "{N}회차({날짜})를 삭제할까요? 출석 기록도 함께 지워집니다." + **삭제 확인** / **아니요**
+  - 그 프로그램 신청자마다 한 줄(이름순): 체크박스(`{이름} 출석`, 이 회차 출석이면 체크), 이름, 가린 연락처, `누적 {m}/{n}회`
+  - 신청자가 없으면 "이 프로그램 신청자가 없습니다"
+- 체크박스를 누르면 `onToggle(회차 id, 신청자 id, 체크 후 상태)`
+
 ### ExportButton (v1.1)
 | Props | 타입 |
 |---|---|
@@ -211,7 +255,7 @@ type ApplicantFilterValue = {
 
 - 버튼 문구: **명단 CSV 내보내기**. 0명이면 비활성화.
 - 누르면 `toCsv()`로 만든 내용을 `신청자명단_YYYYMMDD.csv`(오늘 날짜, 한국 시간)로 내려받는다.
-- CSV 열: `번호, 이름, 연락처, 프로그램, 참석, 신청일` / 참석 값은 `참석` 또는 `미참석`
+- CSV 열: `번호, 이름, 연락처, 프로그램, 참석, 신청일` / 참석 값은 `참석` 또는 `미참석`, 회차가 있는 프로그램이면 `출석 2/3회` (v1.3, `sessions`·`attendance` Props 선택)
 - 엑셀에서 한글이 깨지지 않도록 파일 맨 앞에 BOM(`﻿`)을 붙인다.
 - 값에 쉼표·따옴표·줄바꿈이 있으면 큰따옴표로 감싸고, 값 안의 `"`는 `""`로 바꾼다.
 - 엑셀이 `=`, `+`, `-`, `@`로 시작하는 값을 수식으로 실행하지 않도록 그런 값 앞에는 `'`를 붙인다.
@@ -229,3 +273,5 @@ type ApplicantFilterValue = {
 새 작업(등록·체크·삭제·수정, 프로그램 추가·수정·삭제)을 시작하면 이전 알림은 지운다.
 체크·삭제·수정은 서버 답을 받을 때까지 그 신청자 id를 `busyIds`에 넣어 두고, 끝나면 뺀다.
 프로그램을 지우면, 필터가 그 프로그램을 고르고 있던 경우 필터를 "전체 프로그램"으로 되돌린다.
+프로그램·회차·신청자를 지우면 화면에 들고 있던 회차·출석 기록에서도 같이 뺀다 (v1.3).
+출석 체크는 서버 답을 받은 뒤 화면의 출석 기록을 바꾼다. 실패하면 빨간 알림.

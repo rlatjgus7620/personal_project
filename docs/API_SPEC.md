@@ -11,7 +11,13 @@
 | GET | `/api/programs` | 프로그램 목록 (만든 순서) | 200 | v1.2 |
 | POST | `/api/programs` | 프로그램 추가 | 201 | v1.2 |
 | PATCH | `/api/programs/{id}` | 프로그램 수정 | 200 | v1.2 |
-| DELETE | `/api/programs/{id}` | 프로그램 삭제 (신청자가 없을 때만) | 204 | v1.2 |
+| DELETE | `/api/programs/{id}` | 프로그램 삭제 (신청자가 없을 때만, 회차도 함께 삭제) | 204 | v1.2 |
+| GET | `/api/sessions` | 전체 회차 목록 (프로그램별 날짜순) | 200 | v1.3 |
+| POST | `/api/programs/{id}/sessions` | 그 프로그램에 회차 추가 | 201 | v1.3 |
+| DELETE | `/api/sessions/{id}` | 회차 삭제 (출석 기록도 삭제) | 204 | v1.3 |
+| GET | `/api/attendance` | 전체 출석 기록 | 200 | v1.3 |
+| PUT | `/api/sessions/{id}/attendees/{applicantId}` | 출석으로 체크 | 204 | v1.3 |
+| DELETE | `/api/sessions/{id}/attendees/{applicantId}` | 출석 체크 해제 | 204 | v1.3 |
 | GET | `/api/applicants` | 명단 조회 (최신 신청순) | 200 | |
 | POST | `/api/applicants` | 신청자 등록 | 201 | |
 | PATCH | `/api/applicants/{id}` | 정보 수정 또는 참석 전환 | 200 | |
@@ -31,6 +37,8 @@
 | `PROGRAM_FULL` | 409 | 정원이 가득 찬 프로그램에 신청하거나 옮김 (v1.2) |
 | `DUPLICATE_PROGRAM` | 409 | 같은 이름의 프로그램이 이미 있음 (v1.2) |
 | `PROGRAM_IN_USE` | 409 | 신청자가 있는 프로그램을 삭제하려 함 (v1.2) |
+| `DUPLICATE_SESSION` | 409 | 같은 프로그램에 같은 날짜 회차가 이미 있음 (v1.3) |
+| `HAS_ATTENDANCE` | 409 | 출석 기록이 있는 신청자를 다른 프로그램으로 옮기려 함 (v1.3) |
 
 `message`는 사용자에게 그대로 보여줄 한국어 문장입니다.
 
@@ -93,6 +101,60 @@
 | 신청자가 1명이라도 있음 | 409 `PROGRAM_IN_USE` "신청자가 있는 프로그램은 삭제할 수 없습니다." |
 | 없는 id | 404 `NOT_FOUND` "프로그램을 찾을 수 없습니다." |
 
+## 회차와 출석 (v1.3)
+
+화면이 처음 열릴 때 `GET /api/sessions`와 `GET /api/attendance`로 전부 받아 와서, 출석 횟수·출석률은 화면에서 계산합니다.
+
+### GET /api/sessions
+응답 200 — 프로그램 번호 오름차순, 같은 프로그램 안에서는 날짜 오름차순
+```json
+[
+  { "id": 1, "programId": 3, "sessionDate": "2026-11-10", "note": "OT", "attendeeCount": 4 },
+  { "id": 2, "programId": 3, "sessionDate": "2026-11-12", "note": null, "attendeeCount": 0 }
+]
+```
+
+### POST /api/programs/{id}/sessions
+```json
+{ "sessionDate": "2026-11-10", "note": "OT" }
+```
+응답 201: 만들어진 회차 (`attendeeCount=0`)
+
+| 상황 | 응답 |
+|---|---|
+| 날짜가 없음 | 400 `VALIDATION_ERROR` "회차 날짜를 입력해 주세요." |
+| 날짜 형식이 틀림 | 400 `VALIDATION_ERROR` "날짜는 YYYY-MM-DD 형식으로 입력해 주세요." |
+| 메모 31자 이상 | 400 `VALIDATION_ERROR` "메모는 30자 이하로 입력해 주세요." |
+| 같은 날짜 회차가 이미 있음 | 409 `DUPLICATE_SESSION` "같은 날짜의 회차가 이미 있습니다." |
+| 없는 프로그램 | 404 `NOT_FOUND` "프로그램을 찾을 수 없습니다." |
+
+### DELETE /api/sessions/{id}
+응답 204. 그 회차의 출석 기록도 함께 지웁니다.
+
+| 상황 | 응답 |
+|---|---|
+| 없는 회차 | 404 `NOT_FOUND` "회차를 찾을 수 없습니다." |
+
+### GET /api/attendance
+응답 200 — 출석한 기록만 (줄이 없으면 결석)
+```json
+[ { "sessionId": 1, "applicantId": 2 }, { "sessionId": 1, "applicantId": 5 } ]
+```
+
+### PUT /api/sessions/{id}/attendees/{applicantId}
+출석으로 체크합니다. 본문 없음. 응답 204. 이미 출석이어도 204 (여러 번 보내도 결과가 같음).
+
+### DELETE /api/sessions/{id}/attendees/{applicantId}
+출석 체크를 풉니다. 응답 204. 이미 결석이어도 204.
+
+PUT·DELETE 공통 에러:
+
+| 상황 | 응답 |
+|---|---|
+| 없는 회차 | 404 `NOT_FOUND` "회차를 찾을 수 없습니다." |
+| 없는 신청자 | 404 `NOT_FOUND` "신청자를 찾을 수 없습니다." |
+| 다른 프로그램의 신청자 | 400 `VALIDATION_ERROR` "이 회차 프로그램의 신청자가 아닙니다." |
+
 ## 신청자
 
 ### GET /api/applicants
@@ -154,9 +216,10 @@ v1.1까지는 `"program": "mock_interview"` 같은 코드였고, v1.2부터 프�
 | 없는 id | 404 `NOT_FOUND` "신청자를 찾을 수 없습니다." |
 | 바꾼 결과가 다른 신청과 중복 | 409 `DUPLICATE_APPLICATION` |
 | 정원이 가득 찬 다른 프로그램으로 옮김 | 409 `PROGRAM_FULL` (같은 프로그램 안에서 다른 항목만 바꾸는 건 정원과 무관) |
+| 출석 기록이 있는데 다른 프로그램으로 옮김 (v1.3) | 409 `HAS_ATTENDANCE` "출석 기록이 있는 신청자는 다른 프로그램으로 옮길 수 없습니다." |
 
 ### DELETE /api/applicants/{id}
-응답 204 (본문 없음)
+응답 204 (본문 없음). v1.3부터 그 사람의 출석 기록도 함께 지웁니다.
 
 | 상황 | 응답 |
 |---|---|

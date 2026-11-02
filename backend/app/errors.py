@@ -78,3 +78,32 @@ class ProgramInUseError(AppError):
     status_code = 409
     code = "PROGRAM_IN_USE"
     default_message = "신청자가 있는 프로그램은 삭제할 수 없습니다."
+
+
+# ---------- 회차·출석 (v1.3) ----------
+
+
+class SessionNotFoundError(NotFoundError):
+    default_message = "회차를 찾을 수 없습니다."
+
+
+class DuplicateSessionError(AppError):
+    """한 프로그램에 같은 날짜 회차가 이미 있음 → 409"""
+
+    status_code = 409
+    code = "DUPLICATE_SESSION"
+    default_message = "같은 날짜의 회차가 이미 있습니다."
+
+
+class NotInProgramError(AppError):
+    """회차 프로그램의 신청자가 아닌 사람을 출석 체크 → 400"""
+
+    default_message = "이 회차 프로그램의 신청자가 아닙니다."
+
+
+class HasAttendanceError(AppError):
+    """출석 기록이 있는 신청자를 다른 프로그램으로 옮김 → 409"""
+
+    status_code = 409
+    code = "HAS_ATTENDANCE"
+    default_message = "출석 기록이 있는 신청자는 다른 프로그램으로 옮길 수 없습니다."

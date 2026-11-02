@@ -1,10 +1,11 @@
-"""REPO-01 ~ REPO-11 시나리오.
+"""REPO-01 ~ REPO-16 시나리오.
 
 메모리 저장소(test_repository.py)와 SQL 저장소(test_sql_repository.py)가
 똑같은 시나리오를 통과해야 "라우터가 차이를 모른다"고 말할 수 있습니다.
 """
 
 import time
+from datetime import date
 
 import pytest
 
@@ -12,17 +13,35 @@ from app.errors import (
     CapacityTooSmallError,
     DuplicateApplicationError,
     DuplicateProgramError,
+    DuplicateSessionError,
+    HasAttendanceError,
     InvalidProgramError,
+    NotFoundError,
+    NotInProgramError,
     ProgramFullError,
     ProgramInUseError,
+    SessionNotFoundError,
 )
 from app.repository import ApplicantRepository
-from app.schemas import ApplicantCreate, ApplicantUpdate, ProgramCreate, ProgramUpdate
+from app.schemas import (
+    ApplicantCreate,
+    ApplicantUpdate,
+    ProgramCreate,
+    ProgramUpdate,
+    SessionCreate,
+)
 
 
 def program(repo: ApplicantRepository, name: str = "이력서 클리닉", capacity: int | None = None) -> int:
     """테스트용 프로그램을 만들고 번호를 돌려줌"""
     return repo.create_program(ProgramCreate(name=name, capacity=capacity)).id
+
+
+def session(repo: ApplicantRepository, program_id: int, day: int, note: str | None = None) -> int:
+    """테스트용 회차(2026-11-day)를 만들고 번호를 돌려줌"""
+    created = repo.create_session(program_id, SessionCreate(session_date=date(2026, 11, day), note=note))
+    assert created is not None
+    return created.id
 
 
 def make(program_id: int, name: str = "김테스트", phone: str = "010-1234-5678") -> ApplicantCreate:
@@ -138,6 +157,88 @@ def repo_11_프로그램_신청자_수를_센다(repo: ApplicantRepository) -> N
     assert counts == {a: 2, b: 0}
 
 
+# ---------- 회차·출석 (v1.3) ----------
+
+
+def repo_12_회차는_날짜순이고_같은_날짜는_중복_에러(repo: ApplicantRepository) -> None:
+    pid = program(repo)
+    later = session(repo, pid, 12)
+    earlier = session(repo, pid, 10, note="OT")
+    result = repo.list_sessions()
+    assert [s.id for s in result] == [earlier, later]
+    assert result[0].note == "OT"
+    assert result[0].attendee_count == 0
+    with pytest.raises(DuplicateSessionError):
+        session(repo, pid, 10)
+    assert repo.create_session(999, SessionCreate(session_date=date(2026, 11, 1))) is None
+
+
+def repo_13_출석_체크는_여러_번_해도_한_번(repo: ApplicantRepository) -> None:
+    pid = program(repo)
+    sid = session(repo, pid, 10)
+    applicant = repo.create(make(pid))
+    repo.set_attendance(sid, applicant.id, True)
+    repo.set_attendance(sid, applicant.id, True)
+    assert [(r.session_id, r.applicant_id) for r in repo.list_attendance()] == [(sid, applicant.id)]
+    assert repo.list_sessions()[0].attendee_count == 1
+    repo.set_attendance(sid, applicant.id, False)
+    repo.set_attendance(sid, applicant.id, False)
+    assert repo.list_attendance() == []
+    assert repo.list_sessions()[0].attendee_count == 0
+
+
+def repo_14_출석_체크_에러(repo: ApplicantRepository) -> None:
+    a = program(repo, "모의면접")
+    b = program(repo, "취업 특강")
+    sid = session(repo, a, 10)
+    other = repo.create(make(b))
+    with pytest.raises(NotInProgramError):
+        repo.set_attendance(sid, other.id, True)
+    with pytest.raises(SessionNotFoundError):
+        repo.set_attendance(999, other.id, True)
+    with pytest.raises(NotFoundError):
+        repo.set_attendance(sid, 999, True)
+
+
+def repo_15_삭제하면_관련_출석과_회차도_지워진다(repo: ApplicantRepository) -> None:
+    pid = program(repo, "모의면접")
+    s1 = session(repo, pid, 10)
+    s2 = session(repo, pid, 12)
+    kim = repo.create(make(pid, phone="010-1111-1111"))
+    lee = repo.create(make(pid, phone="010-2222-2222"))
+    for sid in (s1, s2):
+        repo.set_attendance(sid, kim.id, True)
+        repo.set_attendance(sid, lee.id, True)
+    # 회차 삭제 → 그 회차 출석만 사라짐
+    assert repo.delete_session(s1) is True
+    assert repo.delete_session(s1) is False
+    assert {(r.session_id, r.applicant_id) for r in repo.list_attendance()} == {(s2, kim.id), (s2, lee.id)}
+    # 신청자 삭제 → 그 사람 출석만 사라짐
+    assert repo.delete(kim.id) is True
+    assert [(r.session_id, r.applicant_id) for r in repo.list_attendance()] == [(s2, lee.id)]
+    # 신청자가 없는 프로그램 삭제 → 회차도 사라짐
+    empty = program(repo, "취업 특강")
+    session(repo, empty, 20)
+    assert repo.delete_program(empty) is True
+    assert [s.program_id for s in repo.list_sessions()] == [pid]
+
+
+def repo_16_출석_기록이_있으면_다른_프로그램으로_못_옮긴다(repo: ApplicantRepository) -> None:
+    a = program(repo, "모의면접")
+    b = program(repo, "취업 특강")
+    sid = session(repo, a, 10)
+    kim = repo.create(make(a, phone="010-1111-1111"))
+    lee = repo.create(make(a, phone="010-2222-2222"))
+    repo.set_attendance(sid, kim.id, True)
+    with pytest.raises(HasAttendanceError):
+        repo.update(kim.id, ApplicantUpdate(program_id=b))
+    # 출석 기록이 있어도 이름 수정은 됨
+    renamed = repo.update(kim.id, ApplicantUpdate(name="김수정"))
+    assert renamed is not None and renamed.name == "김수정"
+    moved = repo.update(lee.id, ApplicantUpdate(program_id=b))
+    assert moved is not None and moved.program_id == b
+
+
 ALL_SCENARIOS = [
     repo_01_등록하면_최신순으로_조회된다,
     repo_02_참석으로_바꾸면_updated_at이_갱신된다,
@@ -150,4 +251,9 @@ ALL_SCENARIOS = [
     repo_09_신청자가_있는_프로그램은_삭제할_수_없다,
     repo_10_없는_프로그램으로_신청하면_에러,
     repo_11_프로그램_신청자_수를_센다,
+    repo_12_회차는_날짜순이고_같은_날짜는_중복_에러,
+    repo_13_출석_체크는_여러_번_해도_한_번,
+    repo_14_출석_체크_에러,
+    repo_15_삭제하면_관련_출석과_회차도_지워진다,
+    repo_16_출석_기록이_있으면_다른_프로그램으로_못_옮긴다,
 ]

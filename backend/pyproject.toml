@@ -1,6 +1,6 @@
 [project]
 name = "program-backend"
-version = "1.2.0"
+version = "1.3.0"
 description = "교육 프로그램 신청·참석 관리 API"
 requires-python = ">=3.12"
 dependencies = [

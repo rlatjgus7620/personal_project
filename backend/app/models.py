@@ -60,3 +60,40 @@ class Applicant(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class Session(Base):
+    """회차 (v1.3). 프로그램 1개에 회차 여러 개"""
+
+    __tablename__ = "sessions"
+    # 한 프로그램에 같은 날짜 회차는 하나만
+    __table_args__ = (
+        UniqueConstraint("program_id", "session_date", name="uq_sessions_program_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    program_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("programs.id", name="fk_sessions_program_id"), nullable=False
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class Attendance(Base):
+    """출석 기록 (v1.3). 줄이 있으면 출석. 회차 × 신청자 = 다대다"""
+
+    __tablename__ = "attendances"
+
+    # 두 칸을 합쳐서 기본 키 → 같은 회차에 같은 사람은 한 번만
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sessions.id", name="fk_attendances_session_id"), primary_key=True
+    )
+    applicant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("applicants.id", name="fk_attendances_applicant_id"), primary_key=True
+    )
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

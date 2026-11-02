@@ -139,3 +139,22 @@ describe("수정 모드 (v0.4)", () => {
     expect(screen.queryByLabelText("이름 수정")).not.toBeInTheDocument();
   });
 });
+
+describe("회차 출석 (v1.3)", () => {
+  test("UI-38 sessionStat이 있으면 '출석 2/3회'를 보여주고 참석 체크박스는 없다", () => {
+    render(
+      <ul>
+        <ApplicantItem
+          applicant={makeApplicant({ id: 7, programId: 3 })}
+          programs={TEST_PROGRAMS}
+          onToggle={jest.fn()}
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+          sessionStat={{ attended: 2, total: 3 }}
+        />
+      </ul>,
+    );
+    expect(screen.getByText("출석 2/3회")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "김테스트 참석" })).not.toBeInTheDocument();
+  });
+});

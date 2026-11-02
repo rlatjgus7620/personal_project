@@ -4,8 +4,11 @@ import type {
   Applicant,
   ApplicantChanges,
   ApplicantInput,
+  AttendanceRecord,
   Program,
   ProgramInput,
+  Session,
+  SessionInput,
 } from "../types/applicant";
 
 export const CONNECTION_ERROR_MESSAGE =
@@ -90,4 +93,33 @@ export function updateProgram(id: number, input: Partial<ProgramInput>): Promise
 
 export function deleteProgram(id: number): Promise<void> {
   return request<void>(`/api/programs/${id}`, { method: "DELETE" });
+}
+
+// ---------- 회차·출석 (v1.3) ----------
+
+export function fetchSessions(): Promise<Session[]> {
+  return request<Session[]>("/api/sessions");
+}
+
+export function createSession(programId: number, input: SessionInput): Promise<Session> {
+  return request<Session>(`/api/programs/${programId}/sessions`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSession(id: number): Promise<void> {
+  return request<void>(`/api/sessions/${id}`, { method: "DELETE" });
+}
+
+export function fetchAttendance(): Promise<AttendanceRecord[]> {
+  return request<AttendanceRecord[]>("/api/attendance");
+}
+
+// 출석 체크는 PUT, 해제는 DELETE (여러 번 보내도 결과가 같음)
+export function setAttendance(sessionId: number, applicantId: number, present: boolean): Promise<void> {
+  return request<void>(`/api/sessions/${sessionId}/attendees/${applicantId}`, {
+    method: present ? "PUT" : "DELETE",
+  });
 }

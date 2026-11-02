@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import type { Applicant, ApplicantChanges, Program } from "../types/applicant";
+import type { Applicant, ApplicantChanges, Program, SessionStat } from "../types/applicant";
+import { sessionStatLabel } from "../lib/attendance";
 import { formatDate, formatPhoneInput, maskPhone } from "../lib/format";
 import { NAME_MAX_LENGTH, toProgramId, validateApplicant } from "../lib/validation";
 import { isFull, programName, programOptionLabel } from "../lib/programs";
@@ -15,6 +16,8 @@ type Props = {
   onEdit: (id: number, changes: ApplicantChanges) => Promise<boolean>;
   // 서버 처리 중이면 true → 버튼을 잠가서 두 번 눌리지 않게
   busy?: boolean;
+  // 회차가 있는 프로그램이면 출석 횟수 (v1.3). 있으면 체크박스 대신 "출석 2/3회"
+  sessionStat?: SessionStat | null;
 };
 
 export default function ApplicantItem({
@@ -24,6 +27,7 @@ export default function ApplicantItem({
   onDelete,
   onEdit,
   busy = false,
+  sessionStat = null,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -73,7 +77,9 @@ export default function ApplicantItem({
     if (event.key === "Escape") cancelEdit();
   }
 
-  const rowColor = applicant.attended
+  // 초록 줄: 회차 없는 프로그램은 참석 체크, 회차 있는 프로그램은 1회 이상 출석
+  const attended = sessionStat === null ? applicant.attended : sessionStat.attended > 0;
+  const rowColor = attended
     ? "border-emerald-200 bg-emerald-50"
     : "border-slate-200 bg-white";
 
@@ -141,18 +147,29 @@ export default function ApplicantItem({
 
   return (
     <li className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${rowColor} ${busy ? "opacity-60" : ""}`}>
-      <input
-        type="checkbox"
-        aria-label={`${applicant.name} 참석`}
-        checked={applicant.attended}
-        disabled={busy}
-        onChange={() => onToggle(applicant.id)}
-        className="h-5 w-5 accent-emerald-600"
-      />
+      {sessionStat === null ? (
+        <input
+          type="checkbox"
+          aria-label={`${applicant.name} 참석`}
+          checked={applicant.attended}
+          disabled={busy}
+          onChange={() => onToggle(applicant.id)}
+          className="h-5 w-5 accent-emerald-600"
+        />
+      ) : (
+        // 회차별 출석은 "회차 출석부"에서 체크
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+            sessionStat.attended > 0 ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {sessionStatLabel(sessionStat)}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-slate-900">
           {applicant.name}
-          {applicant.attended && (
+          {sessionStat === null && applicant.attended && (
             <span className="ml-2 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">
               참석 완료
             </span>

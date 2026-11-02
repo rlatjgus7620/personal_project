@@ -1,4 +1,4 @@
-"""VAL-01 ~ VAL-08: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
+"""VAL-01 ~ VAL-09: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
 
 from datetime import UTC, date, datetime
 
@@ -11,6 +11,7 @@ from app.schemas import (
     ApplicantUpdate,
     ProgramCreate,
     ProgramUpdate,
+    SessionCreate,
 )
 
 VALID = {"name": "김테스트", "phone": "010-1234-5678", "program_id": 2}
@@ -83,3 +84,19 @@ def test_val_08_프로그램_수정은_null로_비울_수_있지만_이름은_�
         ProgramUpdate()
     with pytest.raises(ValidationError):
         ProgramUpdate(name=None)
+
+
+def test_val_09_회차_추가_규칙() -> None:
+    ok = SessionCreate.model_validate({"sessionDate": "2026-11-10", "note": " OT "})
+    assert ok.session_date == date(2026, 11, 10)
+    assert ok.note == "OT"
+    assert SessionCreate.model_validate({"sessionDate": "2026-11-10", "note": "  "}).note is None
+    bad_inputs: list[dict[str, object]] = [
+        {},
+        {"sessionDate": None},
+        {"sessionDate": ""},
+        {"sessionDate": "2026-11-10", "note": "가" * 31},
+    ]
+    for bad in bad_inputs:
+        with pytest.raises(ValidationError):
+            SessionCreate.model_validate(bad)
