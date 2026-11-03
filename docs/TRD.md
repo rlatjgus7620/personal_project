@@ -94,6 +94,7 @@ personal_project/
    │  ├─ models.py              # DB 테이블 정의 (programs, applicants, sessions, attendances)
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
+   │  ├─ middleware.py          # 예상 못 한 에러도 같은 형식의 500으로 (v2.2.1)
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
    └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 로그인, 신청자·프로그램·회차 API)
 ```
@@ -149,6 +150,8 @@ v1.2부터 8번 단계에서 **프로그램이 있는지, 정원이 찼는지**�
 - v2.0: 토큰 없음·만료 → 401 `UNAUTHORIZED`, 비밀번호 틀림 → 401 `INVALID_PASSWORD`, 너무 많이 틀림 → 429 `TOO_MANY_ATTEMPTS`
 - v1.3: 같은 날짜 회차 → 409 `DUPLICATE_SESSION`, 출석 기록이 있는 신청자를 다른 프로그램으로 옮김 → 409 `HAS_ATTENDANCE`, 다른 프로그램 신청자 출석 체크 → 400
 - 이런 에러는 모두 `errors.py`의 `AppError`를 물려받고(상태 코드·코드·문구를 가짐), `main.py`의 핸들러 하나가 같은 형식으로 응답한다. 새 규칙이 생겨도 에러 클래스만 하나 추가하면 된다.
+- v2.2.1: 예상 못 한 에러(코드 버그, 마이그레이션을 안 한 DB 등) → 500 `INTERNAL_ERROR`. `middleware.py`의 `CatchUnexpectedErrors`가 CORS **안쪽**에서 에러를 잡아 같은 형식으로 바꾼다. 그래서 응답에 CORS 허락 표시가 붙고, 화면이 "서버에 연결할 수 없습니다" 대신 "서버에서 오류가 발생했습니다"를 보여준다. 에러 전체 내용은 서버 터미널(로그)에 남긴다.
+  - 미들웨어는 나중에 추가한 것이 바깥쪽이므로 `CatchUnexpectedErrors`를 CORS보다 **먼저** 추가한다.
 - 화면은 서버의 `error.message`를 그대로 사용자에게 보여준다.
 - 서버에 연결조차 안 되면 "서버에 연결할 수 없습니다..." 문구를 보여준다.
 

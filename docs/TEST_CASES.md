@@ -84,6 +84,7 @@
 | API-30 | PATCH /api/applicants/{id} | 출석 기록이 있는데 `programId` 바꿈 | 409 `HAS_ATTENDANCE` | F-16 |
 | API-36 | PATCH /api/sessions/{id} | 날짜 바꾸고 메모 `null` / 다른 회차 날짜 / `{}` / 없는 회차 | 200 / 409 `DUPLICATE_SESSION` / 400 "수정할 항목이 없습니다." / 404 | F-20 |
 | API-37 | POST·PATCH /api/programs `completionRate` | 70으로 추가 → 100으로 수정 / 0, 101, `null`, 문자 | 200 / 400 "수료 기준은 1~100% 사이로 입력해 주세요." (API-17: 안 보내면 80) | F-19 |
+| API-38 | 예상 못 한 에러 | 저장소가 `RuntimeError`를 냄 (Origin: localhost:3000) | 500 `INTERNAL_ERROR` "서버에서 오류가 발생했습니다…", 응답에 `access-control-allow-origin` 있음 | — |
 
 ## 3-1. 백엔드 — 로그인 (backend/tests/test_auth.py, test_auth_api.py, v2.0)
 

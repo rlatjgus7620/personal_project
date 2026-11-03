@@ -3,6 +3,7 @@
 여기서 하는 일
 1) CORS: 화면(localhost:3000)이 이 서버를 부를 수 있게 허락
 2) 에러 형식 통일: 어떤 에러든 { "error": { "code", "message" } } 로 응답
+   (예상 못 한 에러도 500 INTERNAL_ERROR로, CORS 허락 표시를 붙여서 → middleware.py, v2.2.1)
 3) 라우터 등록: /api/auth (v2.0), /api/programs (v1.2), /api/sessions·/api/attendance (v1.3), /api/applicants
 4) 로그인 검사 (v2.0): /api/auth와 /health를 뺀 모든 라우터에 require_admin을 붙임
 """
@@ -15,16 +16,20 @@ from fastapi.responses import JSONResponse
 from app.auth import require_admin
 from app.config import get_settings
 from app.errors import AppError
+from app.middleware import CatchUnexpectedErrors
 from app.routers import applicants, auth, programs, sessions
 from app.schemas import MSG_PASSWORD_REQUIRED, MSG_PROGRAM_REQUIRED, MSG_SESSION_DATE_REQUIRED
 
-app = FastAPI(title="에듀체크 API (교육 프로그램 신청·참석 관리)", version="2.2.0")
+app = FastAPI(title="에듀체크 API (교육 프로그램 신청·참석 관리)", version="2.2.1")
 
+# 미들웨어는 나중에 추가한 것이 바깥쪽입니다.
+# 에러 잡기를 먼저(안쪽에) 넣어야 그 500 응답에도 CORS 허락 표시가 붙습니다.
+app.add_middleware(CatchUnexpectedErrors)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origin_list,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"]  # Authorization: 로그인 토큰 (v2.0),
+    allow_headers=["Content-Type", "Authorization"],  # Authorization: 로그인 토큰 (v2.0)
 )
 
 # 필드가 빠졌을 때 문구에 쓸 한국어 이름 (JSON 이름 기준)

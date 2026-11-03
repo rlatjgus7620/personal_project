@@ -1,6 +1,6 @@
 [project]
 name = "educheck-backend"
-version = "2.2.0"
+version = "2.2.1"
 description = "에듀체크: 교육 프로그램 신청·참석 관리 API"
 requires-python = ">=3.12"
 dependencies = [

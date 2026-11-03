@@ -110,6 +110,7 @@ personal_project/
    │  ├─ models.py              # DB 테이블 정의 (programs, applicants, sessions, attendances)
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
+   │  ├─ middleware.py          # 예상 못 한 에러도 같은 형식의 500으로 (v2.2.1)
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
    └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 로그인, 신청자·프로그램·회차 API)
 ```
@@ -194,6 +195,7 @@ uv run python -m pytest -m db              # DB 저장소 테스트 (backend/tes
 | `애플리케이션 제어 정책에서 이 파일을 차단했습니다` (`alembic.exe` 등) | `uv run 명령` 대신 `uv run python -m 명령`으로 실행 |
 | `DLL load failed ... _cache_key_cy` | `$env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"` 후 다시 실행 (0) 설정 시 자동) |
 | 로그인할 때 "서버에 관리자 비밀번호가 설정되지 않았습니다" | `backend/.env`에 `ADMIN_PASSWORD=비밀번호`를 적고 서버 다시 켜기 |
+| 화면에 "서버에서 오류가 발생했습니다" | 서버 터미널의 빨간 에러를 확인. `no such column`이면 `backend`에서 `uv run python -m alembic upgrade head` |
 | 화면에 "서버에 연결할 수 없습니다" | 서버가 꺼져 있음. `npm run dev:all`로 다시 켜고 `http://localhost:8000/health` 확인 |
 
 ## 배포 환경 변수 (v1.0에서 사용, 실제 값은 쓰지 않음)

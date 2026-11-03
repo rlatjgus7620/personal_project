@@ -47,6 +47,7 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 | `UNAUTHORIZED` | 401 | 토큰이 없거나 틀렸거나 만료됨 (v2.0) |
 | `INVALID_PASSWORD` | 401 | 로그인 비밀번호가 틀림 (v2.0) |
 | `TOO_MANY_ATTEMPTS` | 429 | 1분 안에 비밀번호를 5번 틀림 → 1분 동안 로그인 막기 (v2.0) |
+| `INTERNAL_ERROR` | 500 | 서버 안에서 예상 못 한 에러 (예: DB 구조가 옛날 것). 문구 "서버에서 오류가 발생했습니다. 잠시 뒤 다시 시도해 주세요." 자세한 내용은 서버 터미널에 남김 (v2.2.1) |
 | `AUTH_NOT_CONFIGURED` | 503 | 서버에 `ADMIN_PASSWORD`가 설정되지 않음 (v2.0) |
 
 `message`는 사용자에게 그대로 보여줄 한국어 문장입니다.

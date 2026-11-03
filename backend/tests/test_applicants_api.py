@@ -1,4 +1,4 @@
-"""API-01 ~ API-16, API-23 ~ API-24: /api/applicants 와 /health (docs/TEST_CASES.md 3절)
+"""API-01 ~ API-16, API-23 ~ API-24, API-38: /api/applicants 와 /health (docs/TEST_CASES.md 3절)
 
 신청하려면 프로그램이 있어야 하므로, 먼저 프로그램을 만들고 그 번호로 신청합니다.
 """
@@ -7,6 +7,11 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+
+from app.deps import get_repo
+from app.main import app
+from app.repository import MemoryApplicantRepository
+from app.schemas import ApplicantOut
 
 URL = "/api/applicants"
 
@@ -182,3 +187,21 @@ def test_api_24_마감된_프로그램으로_옮기면_409(client: TestClient, p
     response = client.patch(f"{URL}/{mover['id']}", json={"programId": small})
     assert response.status_code == 409
     assert_error(response.json(), "PROGRAM_FULL")
+
+
+class BrokenRepository(MemoryApplicantRepository):
+    """명단을 읽을 때 예상 못 한 에러가 나는 저장소 (예: DB 구조가 옛날 것)"""
+
+    def list(self) -> list[ApplicantOut]:
+        raise RuntimeError("no such column")
+
+
+def test_api_38_예상_못_한_에러도_같은_형식의_500이고_CORS가_붙는다(client: TestClient) -> None:
+    app.dependency_overrides[get_repo] = lambda: BrokenRepository()
+    response = client.get(URL, headers={"Origin": "http://localhost:3000"})
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {"code": "INTERNAL_ERROR", "message": "서버에서 오류가 발생했습니다. 잠시 뒤 다시 시도해 주세요."}
+    }
+    # CORS 허락 표시가 있어야 브라우저가 응답을 막지 않음
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
