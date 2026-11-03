@@ -50,9 +50,9 @@
 - 프런트 개발 서버: npm run dev (http://localhost:3000)
 - 프런트 테스트: npm test
 - 프런트 빌드 확인: npm run build
-- 백엔드 개발 서버: cd backend && uv run fastapi dev app/main.py (http://localhost:8000/docs)
-- 백엔드 테스트: cd backend && uv run pytest
-- DB 저장소 테스트: cd backend && uv run pytest -m db
-- DB 테이블 만들기/갱신: cd backend && uv run alembic upgrade head
+- 백엔드 개발 서버: cd backend && uv run python -m fastapi dev app/main.py (http://localhost:8000/docs)
+- 백엔드 테스트: cd backend && uv run python -m pytest
+- DB 저장소 테스트: cd backend && uv run python -m pytest -m db
+- DB 테이블 만들기/갱신: cd backend && uv run python -m alembic upgrade head
 - 시연용 가짜 데이터: cd backend && uv run python -m app.seed (빈 DB에서만 동작)
 - Windows에서는 uv run python -m <도구> 형식으로 실행 (앱 제어 정책 때문)
