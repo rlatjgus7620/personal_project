@@ -78,6 +78,20 @@
 | API-29 | DELETE /api/sessions/{id} | 출석 기록 있는 회차 / 없는 회차 | 204, 이후 출석 기록도 없음 / 404 | F-15 |
 | API-30 | PATCH /api/applicants/{id} | 출석 기록이 있는데 `programId` 바꿈 | 409 `HAS_ATTENDANCE` | F-16 |
 
+## 3-1. 백엔드 — 로그인 (backend/tests/test_auth.py, test_auth_api.py, v2.0)
+
+API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서 토큰을 붙여 둔다. 아래 테스트는 토큰 없는 `anon` 클라이언트도 쓴다.
+
+| ID | 대상 | 상황 | 기대 결과 | 기능 |
+|---|---|---|---|---|
+| AUTH-01 | make_token / verify_token | 바른 토큰 / 서명 한 글자 바꿈 / 만료 시각 바꿈 / 시간 지남 / 다른 비밀 키 / 엉뚱한 문자열 | 통과 / 나머지 모두 거부 | F-18 |
+| AUTH-02 | LoginLimiter | 1분 안에 5번 실패 → 막힘, 1분 지나면 풀림, 성공하면 실패 횟수 초기화 | 시간(clock)을 바꿔 가며 확인 | F-17 |
+| API-31 | POST /api/auth/login | 맞는 비밀번호 | 200, `token`·`expiresAt`, 이 토큰으로 GET /api/applicants 200 | F-17 |
+| API-32 | POST /api/auth/login | 틀린 비밀번호 / 빈 비밀번호 | 401 `INVALID_PASSWORD` / 400 "비밀번호를 입력해 주세요." | F-17 |
+| API-33 | 토큰이 필요한 주소 | 토큰 없음 / `Bearer 엉뚱한값` / 만료된 토큰으로 applicants·programs·sessions·attendance | 모두 401 `UNAUTHORIZED`, `/health`는 토큰 없이 200 | F-18 |
+| API-34 | POST /api/auth/login | 틀린 비밀번호 5번 뒤 맞는 비밀번호 | 429 `TOO_MANY_ATTEMPTS` | F-17 |
+| API-35 | POST /api/auth/login | 서버에 `ADMIN_PASSWORD`가 비어 있음 | 503 `AUTH_NOT_CONFIGURED` | F-17 |
+
 ## 4. 프런트 — 순수 함수 (src/lib/*.test.ts)
 
 | ID | 대상 | 상황 | 기대 결과 | 기능 |
@@ -99,6 +113,7 @@
 | LOGIC-16 | applicantSessionStat, hasAttended | 회차 3개 중 2번 출석 / 회차 없는 프로그램 | `{ attended: 2, total: 3 }`·`true` / `null`·`attended` 값 그대로 | F-16 |
 | LOGIC-17 | summarizeByProgram (회차) | 신청자 2명 × 회차 2개, 출석 기록 3개 | `sessionCount` 2, 출석률 75%, "참석한 사람"은 1회 이상 출석한 사람 수 | F-12, F-16 |
 | LOGIC-18 | toCsv (회차) | 회차 프로그램 신청자 | 참석 칸이 `출석 2/3회` | F-11, F-16 |
+| LOGIC-19 | saveToken, loadToken, clearToken | 저장 → 읽기 → 지우기 / sessionStorage가 에러를 던짐 | 같은 값 → `null` / 에러 없이 `null` | F-17 |
 | LOGIC-14 | withApplicantCounts, isFull, programOptionLabel | 정원 2에 2명 / 정원 없음 | `applicantCount` 다시 계산, 마감 `true`·문구 `(마감)` / `false`·이름만 | F-14 |
 
 ## 5. 프런트 — API 호출 (src/lib/applicantApi.test.ts)
@@ -113,6 +128,8 @@
 | CLIENT-04 | deleteApplicant | `DELETE`, 204 응답에서 JSON을 읽지 않음 |
 | CLIENT-05 | 공통 | 서버가 400/404/409를 주면 `error.message`를 담은 Error를 던짐 |
 | CLIENT-06 | fetchPrograms, createProgram, updateProgram, deleteProgram | `/api/programs` 주소, 메서드, 본문이 명세와 같음 |
+| CLIENT-08 | login, setAuthToken | `POST /api/auth/login`에 `{ password }`. 토큰을 넣은 뒤에는 모든 요청에 `Authorization: Bearer {토큰}` |
+| CLIENT-09 | 공통 | 401을 받으면 `ApiError`(`status` 401, 서버 문구), 연결 실패는 `status` 0 |
 | CLIENT-07 | fetchSessions, createSession, deleteSession, fetchAttendance, setAttendance | 회차·출석 주소와 메서드 (체크는 PUT, 해제는 DELETE) |
 
 ## 6. 프런트 — 컴포넌트 (src/components/*.test.tsx)
@@ -162,6 +179,9 @@
 | UI-41 | AttendanceBook | 회차 2개, 신청자 2명, 1회차에 1명 출석 | 1회차 버튼 `aria-pressed`, 제목 "… 출석 1/2명", 출석한 사람만 체크, 체크박스 누르면 `onToggle(회차, 신청자, 반대 상태)` | F-16 |
 | UI-42 | AttendanceBook | 2회차 고르고 **2회차 삭제** → **삭제 확인** | 확인 문구 후 `onDeleteSession(2회차 id)` | F-15 |
 | UI-43 | AttendanceBook | "출석부 프로그램"에서 다른 프로그램 고름 | 그 프로그램의 회차·신청자로 바뀜 | F-15, F-16 |
+| UI-44 | LoginForm | 빈 칸으로 로그인 / 비밀번호 넣고 로그인 | "비밀번호를 입력해 주세요.", `onLogin` 안 부름 / `onLogin("비밀번호")` | F-17 |
+| UI-45 | LoginForm | `onLogin`이 "비밀번호가 맞지 않습니다." 돌려줌 | 그 문구를 `role="alert"`로, 입력칸 비움 | F-17 |
+| UI-46 | LoginForm | `notice` = "로그인이 필요합니다. 다시 로그인해 주세요." | `role="status"`로 보임 | F-18 |
 
 ## 7. 직접 해 보는 확인 (브라우저)
 
@@ -171,6 +191,7 @@
 | MAN-02 | 백엔드를 끄고 새로고침 | 연결 실패 문구, 화면이 깨지지 않음 | — |
 | MAN-03 | 375px 모바일 보기 | 깨지지 않음 | — |
 | MAN-04 | v1.1 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.2) | 프로그램 4개가 생기고, 기존 신청자가 원래 프로그램에 그대로 연결됨 | F-07, F-13 |
+| MAN-06 | `backend/.env`에 `ADMIN_PASSWORD`를 넣고 서버 재시작 → 로그인 → 새로고침 → 탭 닫고 다시 열기 → 로그아웃 | 로그인 후 명단이 보임, 새로고침해도 유지, 탭을 닫으면 다시 로그인, 로그아웃하면 로그인 화면 | F-17, F-18 |
 | MAN-05 | v1.2 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.3) | 회차·출석 테이블이 생기고, 기존 신청자·참석 체크는 그대로 | F-07, F-16 |
 
 ## 기능 ↔ 테스트 연결 확인
@@ -192,4 +213,6 @@
 | F-13 프로그램 관리 | VAL-07~08, REPO-06, REPO-09, API-17~20, API-22, LOGIC-12~13, CLIENT-06, UI-31~35, UI-37, MAN-04 |
 | F-15 회차 관리 | VAL-09, REPO-12, REPO-15, API-25~26, API-29, LOGIC-15, CLIENT-07, UI-40, UI-42~43 |
 | F-16 회차별 출석 | REPO-13~16, API-27~28, API-30, LOGIC-16~18, CLIENT-07, UI-38~39, UI-41, UI-43, MAN-05 |
+| F-17 관리자 로그인 | AUTH-02, API-31~32, API-34~35, LOGIC-19, CLIENT-08, UI-44~45, MAN-06 |
+| F-18 명단 보호 | AUTH-01, API-33, CLIENT-09, UI-46, MAN-06 |
 | F-14 정원 관리 | VAL-07~08, REPO-07~08, REPO-11, API-21, API-23~24, LOGIC-11~12, LOGIC-14, UI-28, UI-32, UI-36 |

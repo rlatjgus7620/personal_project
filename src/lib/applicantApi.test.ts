@@ -1,4 +1,6 @@
 import {
+  ApiError,
+  CONNECTION_ERROR_MESSAGE,
   createApplicant,
   createProgram,
   createSession,
@@ -9,7 +11,9 @@ import {
   fetchAttendance,
   fetchPrograms,
   fetchSessions,
+  login,
   setAttendance,
+  setAuthToken,
   updateApplicant,
   updateProgram,
 } from "./applicantApi";
@@ -31,6 +35,7 @@ function mockFetch(status: number, body?: unknown) {
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_API_URL = API;
+  setAuthToken(null); // 테스트끼리 토큰이 섞이지 않게
 });
 
 test("CLIENT-01 fetchApplicants는 GET으로 명단을 받아온다", async () => {
@@ -130,4 +135,43 @@ test("CLIENT-07 회차·출석 API는 주소와 메서드를 지킨다 (체크�
   fetchMock = mockFetch(204);
   await setAttendance(7, 5, false);
   expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions/7/attendees/5`, { method: "DELETE" });
+});
+
+test("CLIENT-08 login은 비밀번호를 POST하고, 토큰을 넣으면 모든 요청에 Authorization을 붙인다", async () => {
+  let fetchMock = mockFetch(200, { token: "123.abc", expiresAt: "2026-11-03T12:00:00Z" });
+  await expect(login("pw-1234")).resolves.toEqual({ token: "123.abc", expiresAt: "2026-11-03T12:00:00Z" });
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: "pw-1234" }),
+  });
+
+  setAuthToken("123.abc");
+  fetchMock = mockFetch(200, []);
+  await fetchApplicants();
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/applicants`, {
+    headers: { Authorization: "Bearer 123.abc" },
+  });
+
+  fetchMock = mockFetch(201, makeApplicant());
+  const input = { name: "김테스트", phone: "010-1234-5678", programId: 2 };
+  await createApplicant(input);
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/applicants`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer 123.abc" },
+    body: JSON.stringify(input),
+  });
+});
+
+test("CLIENT-09 401은 status가 401인 ApiError, 연결 실패는 status 0", async () => {
+  mockFetch(401, { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다. 다시 로그인해 주세요." } });
+  const error = await fetchApplicants().catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(ApiError);
+  expect((error as ApiError).status).toBe(401);
+  expect((error as ApiError).message).toBe("로그인이 필요합니다. 다시 로그인해 주세요.");
+
+  global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
+  const offline = await fetchApplicants().catch((e: unknown) => e);
+  expect((offline as ApiError).status).toBe(0);
+  expect((offline as ApiError).message).toBe(CONNECTION_ERROR_MESSAGE);
 });

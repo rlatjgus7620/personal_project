@@ -31,6 +31,7 @@ MSG_PERIOD_ORDER = "종료일은 시작일보다 빠를 수 없습니다."
 NOTE_MAX_LENGTH = 30
 MSG_SESSION_DATE_REQUIRED = "회차 날짜를 입력해 주세요."
 MSG_NOTE_TOO_LONG = f"메모는 {NOTE_MAX_LENGTH}자 이하로 입력해 주세요."
+MSG_PASSWORD_REQUIRED = "비밀번호를 입력해 주세요."
 
 
 # ---------- 검사 함수 ----------

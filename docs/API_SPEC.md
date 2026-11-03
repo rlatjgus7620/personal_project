@@ -7,7 +7,8 @@
 
 | 메서드 | 주소 | 하는 일 | 성공 코드 | 버전 |
 |---|---|---|---|---|
-| GET | `/health` | 서버 상태 확인 | 200 | |
+| GET | `/health` | 서버 상태 확인 (로그인 없이) | 200 | |
+| POST | `/api/auth/login` | 관리자 로그인 → 토큰 받기 (로그인 없이) | 200 | v2.0 |
 | GET | `/api/programs` | 프로그램 목록 (만든 순서) | 200 | v1.2 |
 | POST | `/api/programs` | 프로그램 추가 | 201 | v1.2 |
 | PATCH | `/api/programs/{id}` | 프로그램 수정 | 200 | v1.2 |
@@ -22,6 +23,9 @@
 | POST | `/api/applicants` | 신청자 등록 | 201 | |
 | PATCH | `/api/applicants/{id}` | 정보 수정 또는 참석 전환 | 200 | |
 | DELETE | `/api/applicants/{id}` | 신청 취소(삭제) | 204 | |
+
+v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 로그인 토큰이 있어야** 합니다.
+요청 머리글(header)에 `Authorization: Bearer {토큰}`을 붙입니다. 없거나 틀렸거나 만료되면 401 `UNAUTHORIZED`.
 
 ## 에러 형식 (모든 API 공통)
 
@@ -39,6 +43,10 @@
 | `PROGRAM_IN_USE` | 409 | 신청자가 있는 프로그램을 삭제하려 함 (v1.2) |
 | `DUPLICATE_SESSION` | 409 | 같은 프로그램에 같은 날짜 회차가 이미 있음 (v1.3) |
 | `HAS_ATTENDANCE` | 409 | 출석 기록이 있는 신청자를 다른 프로그램으로 옮기려 함 (v1.3) |
+| `UNAUTHORIZED` | 401 | 토큰이 없거나 틀렸거나 만료됨 (v2.0) |
+| `INVALID_PASSWORD` | 401 | 로그인 비밀번호가 틀림 (v2.0) |
+| `TOO_MANY_ATTEMPTS` | 429 | 1분 안에 비밀번호를 5번 틀림 → 1분 동안 로그인 막기 (v2.0) |
+| `AUTH_NOT_CONFIGURED` | 503 | 서버에 `ADMIN_PASSWORD`가 설정되지 않음 (v2.0) |
 
 `message`는 사용자에게 그대로 보여줄 한국어 문장입니다.
 
@@ -47,6 +55,32 @@
 ```json
 { "status": "ok" }
 ```
+
+## 로그인 (v2.0)
+
+### POST /api/auth/login
+```json
+{ "password": "관리자 비밀번호" }
+```
+응답 200
+```json
+{ "token": "1793700000.3f9a...", "expiresAt": "2026-11-03T12:00:00Z" }
+```
+- 토큰은 `{만료 시각}.{서명}` 모양입니다. 서명은 서버만 아는 비밀 키(`AUTH_SECRET`)로 만들어서, 화면에서 만료 시각을 바꾸면 서명이 맞지 않아 거부됩니다.
+- 토큰은 12시간 동안 유효합니다. DB에 저장하지 않습니다.
+
+| 상황 | 응답 |
+|---|---|
+| 비밀번호가 비었음 | 400 `VALIDATION_ERROR` "비밀번호를 입력해 주세요." |
+| 비밀번호가 틀림 | 401 `INVALID_PASSWORD` "비밀번호가 맞지 않습니다." |
+| 1분 안에 5번 틀린 뒤 (맞는 비밀번호여도) | 429 `TOO_MANY_ATTEMPTS` "로그인 시도가 너무 많습니다. 1분 뒤에 다시 시도해 주세요." |
+| 서버에 `ADMIN_PASSWORD`가 없음 | 503 `AUTH_NOT_CONFIGURED` "서버에 관리자 비밀번호가 설정되지 않았습니다. backend/.env를 확인해 주세요." |
+
+### 토큰이 필요한 주소의 공통 에러
+
+| 상황 | 응답 |
+|---|---|
+| `Authorization` 머리글이 없음, 모양이 틀림, 서명이 틀림, 만료됨 | 401 `UNAUTHORIZED` "로그인이 필요합니다. 다시 로그인해 주세요." |
 
 ## 프로그램 (v1.2)
 

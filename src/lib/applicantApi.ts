@@ -20,13 +20,37 @@ function baseUrl(): string {
 
 type ErrorBody = { error?: { code?: string; message?: string } };
 
+// 서버 에러 (v2.0): 문구와 함께 상태 코드를 담음. 401이면 화면이 로그인 화면으로 돌아감
+// 서버에 연결조차 안 되면 status는 0
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+// 로그인 토큰 (v2.0). 있으면 모든 요청에 "Authorization: Bearer 토큰"을 붙임
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+function withAuth(init?: RequestInit): RequestInit | undefined {
+  if (authToken === null) return init;
+  return { ...init, headers: { ...init?.headers, Authorization: `Bearer ${authToken}` } };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${baseUrl()}${path}`, init);
+    response = await fetch(`${baseUrl()}${path}`, withAuth(init));
   } catch {
     // 서버가 꺼져 있거나 주소가 틀려서 아예 연결이 안 됨
-    throw new Error(CONNECTION_ERROR_MESSAGE);
+    throw new ApiError(CONNECTION_ERROR_MESSAGE, 0);
   }
   if (!response.ok) {
     let message = `요청에 실패했습니다. (${response.status})`;
@@ -36,7 +60,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // 본문이 JSON이 아니면 기본 문구 사용
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
   // 204(본문 없음)는 JSON을 읽지 않음
   if (response.status === 204) return undefined as T;
@@ -44,6 +68,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+// ---------- 로그인 (v2.0) ----------
+
+export type LoginResult = { token: string; expiresAt: string };
+
+export function login(password: string): Promise<LoginResult> {
+  return request<LoginResult>("/api/auth/login", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ password }),
+  });
+}
 
 export function fetchApplicants(): Promise<Applicant[]> {
   return request<Applicant[]>("/api/applicants");

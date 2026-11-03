@@ -3,26 +3,28 @@
 여기서 하는 일
 1) CORS: 화면(localhost:3000)이 이 서버를 부를 수 있게 허락
 2) 에러 형식 통일: 어떤 에러든 { "error": { "code", "message" } } 로 응답
-3) 라우터 등록: /api/programs (v1.2), /api/sessions·/api/attendance (v1.3), /api/applicants
+3) 라우터 등록: /api/auth (v2.0), /api/programs (v1.2), /api/sessions·/api/attendance (v1.3), /api/applicants
+4) 로그인 검사 (v2.0): /api/auth와 /health를 뺀 모든 라우터에 require_admin을 붙임
 """
 
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.auth import require_admin
 from app.config import get_settings
 from app.errors import AppError
-from app.routers import applicants, programs, sessions
-from app.schemas import MSG_PROGRAM_REQUIRED, MSG_SESSION_DATE_REQUIRED
+from app.routers import applicants, auth, programs, sessions
+from app.schemas import MSG_PASSWORD_REQUIRED, MSG_PROGRAM_REQUIRED, MSG_SESSION_DATE_REQUIRED
 
-app = FastAPI(title="교육 프로그램 신청·참석 관리 API", version="1.3.0")
+app = FastAPI(title="교육 프로그램 신청·참석 관리 API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origin_list,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"]  # Authorization: 로그인 토큰 (v2.0),
 )
 
 # 필드가 빠졌을 때 문구에 쓸 한국어 이름 (JSON 이름 기준)
@@ -53,6 +55,8 @@ def validation_message(errors: list[dict[str, object]]) -> str:
             return MSG_PROGRAM_REQUIRED
         if field == "sessionDate":
             return MSG_SESSION_DATE_REQUIRED
+        if field == "password":
+            return MSG_PASSWORD_REQUIRED
         if field in FIELD_LABELS:
             return f"{FIELD_LABELS[field]} 항목이 필요합니다."
     if field in DATE_FIELDS:
@@ -80,6 +84,10 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(programs.router)
-app.include_router(sessions.router)
-app.include_router(applicants.router)
+# 로그인 없이 부를 수 있는 것: /health, /api/auth/login
+app.include_router(auth.router)
+# 나머지는 모두 토큰 필요 (v2.0)
+admin_only = [Depends(require_admin)]
+app.include_router(programs.router, dependencies=admin_only)
+app.include_router(sessions.router, dependencies=admin_only)
+app.include_router(applicants.router, dependencies=admin_only)

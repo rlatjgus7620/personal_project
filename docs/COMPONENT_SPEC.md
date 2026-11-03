@@ -5,26 +5,30 @@
 ## 1. 컴포넌트 트리
 
 ```text
-ApplicantPage (app/page.tsx)       : 데이터와 상태를 가진 "지휘자"
-├─ ApplicantSummary                : 전체 N명 · 참석 M명
-├─ ProgramSummary           (v1.1) : 프로그램별 신청·참석 인원, 참석률, 정원·마감 (v1.2)
-├─ ProgramManager           (v1.2) : 프로그램 목록·추가·수정·삭제 (접었다 펴는 칸)
-│  └─ ProgramForm           (v1.2) : 프로그램 이름·시작일·종료일·장소·정원 입력
-├─ AttendanceBook         (v1.3) : 회차 출석부 — 프로그램·회차 고르기, 회차 추가·삭제, 출석 체크 (접었다 펴는 칸)
-├─ ApplicantForm                   : 이름 + 연락처 + 프로그램 + 등록 버튼
-├─ ApplicantFilter          (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름 검색
-├─ ExportButton             (v1.1) : 지금 보이는 명단을 CSV로 저장
-└─ ApplicantList                   : 명단 (ul)
-   └─ ApplicantItem                : 한 사람 (li) — 참석 체크, 정보, 수정, 삭제
+Home (app/page.tsx)                  (v2.0) : 로그인 문지기 — 토큰이 없으면 LoginForm, 있으면 AdminDashboard
+├─ LoginForm                         (v2.0) : 관리자 비밀번호 입력 + 로그인 버튼
+└─ AdminDashboard                    (v2.0) : 데이터와 상태를 가진 "지휘자" (v1.3까지의 page.tsx 내용) + 로그아웃 버튼
+   ├─ ApplicantSummary                      : 전체 N명 · 참석 M명
+   ├─ ProgramSummary                 (v1.1) : 프로그램별 신청·참석 인원, 참석률, 정원·마감 (v1.2)
+   ├─ ProgramManager                 (v1.2) : 프로그램 목록·추가·수정·삭제 (접었다 펴는 칸)
+   │  └─ ProgramForm                 (v1.2) : 프로그램 이름·시작일·종료일·장소·정원 입력
+   ├─ AttendanceBook                 (v1.3) : 회차 출석부 — 프로그램·회차 고르기, 회차 추가·삭제, 출석 체크 (접었다 펴는 칸)
+   ├─ ApplicantForm                         : 이름 + 연락처 + 프로그램 + 등록 버튼
+   ├─ ApplicantFilter                (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름 검색
+   ├─ ExportButton                   (v1.1) : 지금 보이는 명단을 CSV로 저장
+   └─ ApplicantList                         : 명단 (ul)
+      └─ ApplicantItem                      : 한 사람 (li) — 참석 체크, 정보, 수정, 삭제
 ```
 
-원칙: **데이터를 바꾸는 일(API 호출)은 페이지만 한다.** 부품들은 화면을 그리고, 사용자가 무엇을 했는지 `onAdd`, `onToggle` 같은 함수로 페이지에 알리기만 한다.
+원칙: **데이터를 바꾸는 일(API 호출)은 페이지(v2.0부터 AdminDashboard)만 한다.** 부품들은 화면을 그리고, 사용자가 무엇을 했는지 `onAdd`, `onToggle` 같은 함수로 페이지에 알리기만 한다.
 
 v1.3부터 페이지는 회차(`GET /api/sessions`)와 출석 기록(`GET /api/attendance`)도 함께 불러온다. 신청자별 "출석 2/3회", 프로그램 출석률은 `lib/attendance.ts`의 순수 함수로 계산한다.
 
 v1.2부터 프로그램 목록은 코드에 고정하지 않고 서버(`GET /api/programs`)에서 받아 온다. 각 프로그램의 신청자 수(`applicantCount`)는 페이지가 지금 명단으로 다시 계산해서(`withApplicantCounts`) 부품들에 넘긴다. 그래서 신청·삭제 직후에도 숫자가 바로 맞는다.
 
 ## 2. 공유 타입
+
+v2.0: `lib/applicantApi.ts`는 `ApiError`(`message` + `status`)를 던진다. 연결 자체가 안 되면 `status`는 `0`.
 
 ```ts
 type Program = {
@@ -58,6 +62,33 @@ type SessionStat = { attended: number; total: number };               // 출석 
 ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 뜻을 쓴다.
 
 ## 3. 컴포넌트별 명세
+
+### Home (app/page.tsx, v2.0)
+- 처음 열릴 때 `loadToken()`으로 `sessionStorage`의 토큰을 읽어 `setAuthToken()`에 넣는다.
+- 토큰이 없으면 `LoginForm`, 있으면 `AdminDashboard`를 보여준다.
+- 로그인 성공 → 토큰 저장(`saveToken`), `AdminDashboard`로.
+- 로그아웃 또는 401 → 토큰 지우기(`clearToken`), `LoginForm`으로. 401이면 서버 문구("로그인이 필요합니다. 다시 로그인해 주세요.")를 LoginForm에 `notice`로 넘긴다.
+
+### LoginForm (v2.0)
+| Props | 타입 | 설명 |
+|---|---|---|
+| `onLogin` | `(password: string) => Promise<string \| null>` | 성공하면 `null`, 실패하면 보여줄 문구 |
+| `notice` | `string \| null` (선택) | 로그인 화면 위에 보여줄 안내 (예: 로그인 만료) |
+
+- 제목 `관리자 로그인`, 비밀번호 입력(`type="password"`, 접근 이름 "관리자 비밀번호", `autoComplete="current-password"`), **로그인** 버튼
+- 비밀번호가 비면 보내지 않고 "비밀번호를 입력해 주세요." (`role="alert"`)
+- 보내는 동안 버튼을 잠근다. `onLogin`이 문구를 돌려주면 `role="alert"`로 보여주고 입력칸을 비운다.
+- `notice`는 `role="status"`로 보여준다.
+
+### AdminDashboard (v2.0)
+| Props | 타입 | 설명 |
+|---|---|---|
+| `onLogout` | `() => void` | **로그아웃** 버튼 |
+| `onUnauthorized` | `(message: string) => void` | 서버가 401을 주면 호출 (Home이 로그인 화면으로 바꿈) |
+
+- v1.3까지 `app/page.tsx`가 하던 일(데이터 불러오기·저장, 부품 배치)을 그대로 옮긴다.
+- 머리글 오른쪽에 요약과 **로그아웃** 버튼.
+- 어떤 API든 `ApiError`의 `status`가 401이면 빨간 알림 대신 `onUnauthorized(message)`.
 
 ### ApplicantSummary
 | Props | 타입 |
@@ -264,6 +295,8 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 
 | 상태 | 화면 |
 |---|---|
+| 로그인 전 (v2.0) | LoginForm만 보임. 명단 API는 부르지 않음 |
+| 로그인 만료·토큰 틀림 (v2.0) | LoginForm으로 돌아가고 "로그인이 필요합니다. 다시 로그인해 주세요." |
 | 처음 불러오는 중 | 명단 자리에 "불러오는 중..." (프로그램과 명단을 함께 불러옴) |
 | 서버 연결 실패 | 빨간 알림(`role="alert"`)에 "서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요." |
 | 서버가 400/404/409를 돌려줌 | 빨간 알림에 서버의 `error.message` (예: "정원이 가득 찼습니다. (정원 10명)") |

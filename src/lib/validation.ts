@@ -22,6 +22,7 @@ export const MESSAGES = {
   capacityRange: `정원은 ${CAPACITY_MIN}~${CAPACITY_MAX}명 사이로 입력해 주세요.`,
   periodOrder: "종료일은 시작일보다 빠를 수 없습니다.",
   sessionDateRequired: "회차 날짜를 입력해 주세요.",
+  passwordRequired: "비밀번호를 입력해 주세요.",
 } as const;
 
 // 선택칸 값("" 또는 "3")을 프로그램 번호로. 고르지 않았으면 null

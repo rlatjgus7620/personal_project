@@ -107,3 +107,38 @@ class HasAttendanceError(AppError):
     status_code = 409
     code = "HAS_ATTENDANCE"
     default_message = "출석 기록이 있는 신청자는 다른 프로그램으로 옮길 수 없습니다."
+
+
+# ---------- 로그인 (v2.0) ----------
+
+
+class UnauthorizedError(AppError):
+    """토큰이 없거나 틀렸거나 만료됨 → 401"""
+
+    status_code = 401
+    code = "UNAUTHORIZED"
+    default_message = "로그인이 필요합니다. 다시 로그인해 주세요."
+
+
+class InvalidPasswordError(AppError):
+    """로그인 비밀번호가 틀림 → 401"""
+
+    status_code = 401
+    code = "INVALID_PASSWORD"
+    default_message = "비밀번호가 맞지 않습니다."
+
+
+class TooManyAttemptsError(AppError):
+    """1분 안에 비밀번호를 5번 틀림 → 429"""
+
+    status_code = 429
+    code = "TOO_MANY_ATTEMPTS"
+    default_message = "로그인 시도가 너무 많습니다. 1분 뒤에 다시 시도해 주세요."
+
+
+class AuthNotConfiguredError(AppError):
+    """서버에 ADMIN_PASSWORD가 없음 → 503"""
+
+    status_code = 503
+    code = "AUTH_NOT_CONFIGURED"
+    default_message = "서버에 관리자 비밀번호가 설정되지 않았습니다. backend/.env를 확인해 주세요."

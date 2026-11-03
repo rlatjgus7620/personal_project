@@ -27,6 +27,13 @@ class Settings(BaseSettings):
         "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
     )
 
+    # 관리자 로그인 비밀번호 (v2.0). 비어 있으면 로그인이 안 됨. 값은 backend/.env에만 적기
+    admin_password: str = ""
+    # 토큰 서명용 비밀 키 (v2.0). 비우면 서버를 켤 때마다 새로 만듦 (→ 서버를 다시 켜면 다시 로그인)
+    auth_secret: str = ""
+    # 로그인 유지 시간
+    token_hours: int = 12
+
     @property
     def cors_origin_list(self) -> list[str]:
         # 끝의 / 는 지움 (붙어 있으면 CORS 에러가 남)
