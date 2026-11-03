@@ -2,6 +2,8 @@ import { makeApplicant } from "../test-utils/makeApplicant";
 import { makeSession } from "../test-utils/makeSession";
 import {
   applicantSessionStat,
+  attendanceRate,
+  isCompleted,
   hasAttended,
   isPresent,
   sessionStatLabel,
@@ -47,4 +49,13 @@ test("LOGIC-16 applicantSessionStat·hasAttended는 회차가 있으면 출석 �
   expect(applicantSessionStat(lee, SESSIONS, attendance)).toBeNull();
   expect(hasAttended(lee, SESSIONS, attendance)).toBe(true);
   expect(hasAttended({ ...lee, attended: false }, SESSIONS, attendance)).toBe(false);
+});
+
+test("LOGIC-20 출석률이 수료 기준 이상이면 수료 (v2.1)", () => {
+  expect(isCompleted({ attended: 4, total: 5 }, 80)).toBe(true); // 80%
+  expect(isCompleted({ attended: 2, total: 3 }, 80)).toBe(false); // 67%
+  expect(isCompleted({ attended: 2, total: 3 }, 60)).toBe(true);
+  expect(isCompleted({ attended: 0, total: 0 }, 1)).toBe(false);
+  expect(attendanceRate({ attended: 2, total: 3 })).toBe(67);
+  expect(attendanceRate({ attended: 0, total: 0 })).toBe(0);
 });

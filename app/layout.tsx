@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "교육 프로그램 신청·참석 관리",
-  description: "교육 프로그램 신청자 명단과 참석을 관리하는 앱",
+  title: "에듀체크 — 교육 프로그램 신청·참석 관리",
+  description: "교육 프로그램 신청자 명단과 회차별 출석, 수료를 관리하는 앱",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

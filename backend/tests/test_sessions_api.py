@@ -1,4 +1,4 @@
-"""API-25 ~ API-30: 회차·출석 (v1.3, docs/TEST_CASES.md 3절)"""
+"""API-25 ~ API-30, API-36: 회차·출석 (v1.3, docs/TEST_CASES.md 3절)"""
 
 from fastapi.testclient import TestClient
 
@@ -132,3 +132,24 @@ def test_api_30_출석_기록이_있으면_다른_프로그램으로_못_옮긴�
     response = client.patch(f"/api/applicants/{aid}", json={"programId": b})
     assert response.status_code == 409
     assert error_of(response.json())["code"] == "HAS_ATTENDANCE"
+
+
+def test_api_36_회차_수정(client: TestClient) -> None:
+    pid = make_program(client)
+    sid = make_session(client, pid, "2026-11-10", "OT")
+    make_session(client, pid, "2026-11-12")
+    ok = client.patch(f"/api/sessions/{sid}", json={"sessionDate": "2026-11-11", "note": None})
+    assert ok.status_code == 200
+    assert (ok.json()["sessionDate"], ok.json()["note"]) == ("2026-11-11", None)
+
+    duplicate = client.patch(f"/api/sessions/{sid}", json={"sessionDate": "2026-11-12"})
+    assert duplicate.status_code == 409
+    assert error_of(duplicate.json())["code"] == "DUPLICATE_SESSION"
+
+    empty = client.patch(f"/api/sessions/{sid}", json={})
+    assert empty.status_code == 400
+    assert error_of(empty.json())["message"] == "수정할 항목이 없습니다."
+
+    missing = client.patch("/api/sessions/999", json={"note": "x"})
+    assert missing.status_code == 404
+    assert error_of(missing.json())["message"] == "회차를 찾을 수 없습니다."

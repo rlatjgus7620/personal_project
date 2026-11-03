@@ -8,6 +8,7 @@ export type Program = {
   endDate: string | null;
   location: string | null;
   capacity: number | null; // null이면 정원 제한 없음
+  completionRate: number; // 수료 기준 출석률(%) (v2.1, 기본 80)
   applicantCount: number; // 지금 신청자 수
 };
 
@@ -49,7 +50,7 @@ export type Session = {
 // 출석 기록 한 줄 (줄이 있으면 출석, 없으면 결석)
 export type AttendanceRecord = { sessionId: number; applicantId: number };
 
-// 회차를 추가할 때 보내는 값
+// 회차를 추가·수정할 때 보내는 값 (수정은 v2.1)
 export type SessionInput = { sessionDate: string; note: string | null };
 
 // 한 신청자의 출석 횟수 / 그 프로그램 회차 수

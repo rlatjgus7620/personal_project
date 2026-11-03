@@ -1,4 +1,4 @@
-"""REPO-01 ~ REPO-16 시나리오.
+"""REPO-01 ~ REPO-19 시나리오.
 
 메모리 저장소(test_repository.py)와 SQL 저장소(test_sql_repository.py)가
 똑같은 시나리오를 통과해야 "라우터가 차이를 모른다"고 말할 수 있습니다.
@@ -23,12 +23,14 @@ from app.errors import (
     SessionNotFoundError,
 )
 from app.repository import ApplicantRepository
+from app.seed import DEMO_APPLICANTS, DEMO_PROGRAMS, seed_demo
 from app.schemas import (
     ApplicantCreate,
     ApplicantUpdate,
     ProgramCreate,
     ProgramUpdate,
     SessionCreate,
+    SessionUpdate,
 )
 
 
@@ -239,6 +241,51 @@ def repo_16_출석_기록이_있으면_다른_프로그램으로_못_옮긴다(r
     assert moved is not None and moved.program_id == b
 
 
+# ---------- v2.1 ~ v2.2 ----------
+
+
+def repo_17_회차_날짜와_메모를_고쳐도_출석은_그대로(repo: ApplicantRepository) -> None:
+    pid = program(repo)
+    s1 = session(repo, pid, 10, note="OT")
+    s2 = session(repo, pid, 12)
+    kim = repo.create(make(pid))
+    repo.set_attendance(s1, kim.id, True)
+    moved = repo.update_session(s1, SessionUpdate.model_validate({"sessionDate": "2026-11-14", "note": None}))
+    assert moved is not None
+    assert (moved.session_date, moved.note, moved.attendee_count) == (date(2026, 11, 14), None, 1)
+    # 날짜순이 바뀜: 12일 회차가 먼저
+    assert [s.id for s in repo.list_sessions()] == [s2, s1]
+    with pytest.raises(DuplicateSessionError):
+        repo.update_session(s1, SessionUpdate.model_validate({"sessionDate": "2026-11-12"}))
+    # 자기 날짜 그대로 메모만 바꾸는 건 괜찮음
+    same = repo.update_session(s2, SessionUpdate.model_validate({"sessionDate": "2026-11-12", "note": "실전"}))
+    assert same is not None and same.note == "실전"
+    assert repo.update_session(999, SessionUpdate.model_validate({"note": "x"})) is None
+
+
+def repo_18_수료_기준은_기본_80이고_바꿀_수_있다(repo: ApplicantRepository) -> None:
+    pid = program(repo)
+    assert repo.list_programs()[0].completion_rate == 80
+    updated = repo.update_program(pid, ProgramUpdate.model_validate({"completionRate": 60}))
+    assert updated is not None and updated.completion_rate == 60
+    assert repo.list_programs()[0].completion_rate == 60
+
+
+def repo_19_시연용_데이터는_비어_있을_때_한_번만_들어간다(repo: ApplicantRepository) -> None:
+    program(repo, "모의면접")  # 기본 프로그램이 이미 있는 경우: 새로 만들지 않고 내용만 채움
+    assert seed_demo(repo, date(2026, 11, 3)) is True
+    programs = {p.name: p for p in repo.list_programs()}
+    assert len(programs) == len(DEMO_PROGRAMS)
+    assert programs["모의면접"].location == "3층 세미나실"
+    assert len(repo.list()) == len(DEMO_APPLICANTS)
+    assert all(a.phone.startswith("010-0000-") for a in repo.list())
+    assert len(repo.list_sessions()) == sum(len(p.sessions) for p in DEMO_PROGRAMS)
+    assert len(repo.list_attendance()) == sum(len(present) for *_, present in DEMO_APPLICANTS)
+    # 두 번째 실행은 아무것도 안 함
+    assert seed_demo(repo, date(2026, 11, 3)) is False
+    assert len(repo.list()) == len(DEMO_APPLICANTS)
+
+
 ALL_SCENARIOS = [
     repo_01_등록하면_최신순으로_조회된다,
     repo_02_참석으로_바꾸면_updated_at이_갱신된다,
@@ -256,4 +303,7 @@ ALL_SCENARIOS = [
     repo_14_출석_체크_에러,
     repo_15_삭제하면_관련_출석과_회차도_지워진다,
     repo_16_출석_기록이_있으면_다른_프로그램으로_못_옮긴다,
+    repo_17_회차_날짜와_메모를_고쳐도_출석은_그대로,
+    repo_18_수료_기준은_기본_80이고_바꿀_수_있다,
+    repo_19_시연용_데이터는_비어_있을_때_한_번만_들어간다,
 ]

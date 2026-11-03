@@ -37,6 +37,11 @@ export default function ProgramSummary({ programs, applicants, sessions = [], at
             {/* 회차가 있으면 출석률(출석 기록 ÷ 신청자 × 회차), 없으면 참석률 */}
             {s.sessionCount > 0 ? "출석률" : "참석률"} {s.rate === null ? "-" : `${s.rate}%`}
           </p>
+          {s.sessionCount > 0 && (
+            <p className="text-xs text-indigo-700">
+              수료 {s.completed}명 (기준 {s.completionRate}%)
+            </p>
+          )}
         </article>
       ))}
     </section>

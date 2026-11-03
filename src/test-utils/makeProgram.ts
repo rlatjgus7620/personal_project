@@ -9,6 +9,7 @@ export function makeProgram(overrides: Partial<Program> = {}): Program {
     endDate: null,
     location: null,
     capacity: null,
+    completionRate: 80,
     applicantCount: 0,
     ...overrides,
   };

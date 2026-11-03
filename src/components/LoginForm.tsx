@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { SLOW_SERVER_MESSAGE, useSlowNotice } from "../lib/useSlowNotice";
 import { MESSAGES } from "../lib/validation";
 
 type Props = {
@@ -14,6 +15,7 @@ export default function LoginForm({ onLogin, notice = null }: Props) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const slow = useSlowNotice(sending); // 로그인이 첫 요청이라 잠든 서버를 깨우는 동안 안내 (v2.0.1)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,6 +36,7 @@ export default function LoginForm({ onLogin, notice = null }: Props) {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 px-4 py-8">
       <div>
+        <p className="text-sm font-semibold text-blue-700">에듀체크</p>
         <h1 className="text-2xl font-bold text-slate-900">관리자 로그인</h1>
         <p className="text-sm text-slate-500">교육 프로그램 신청·참석 관리</p>
       </div>
@@ -61,6 +64,11 @@ export default function LoginForm({ onLogin, notice = null }: Props) {
             className="rounded-lg border border-slate-300 px-3 py-2 font-normal"
           />
         </label>
+        {slow && (
+          <p role="status" className="text-sm text-slate-500">
+            {SLOW_SERVER_MESSAGE}
+          </p>
+        )}
         {message && (
           <p role="alert" className="text-sm text-red-600">
             {message}

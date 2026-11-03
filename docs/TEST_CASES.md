@@ -16,6 +16,8 @@
 | VAL-06 | ApplicantOut | JSON으로 바꾸기 | 키가 `programId`, `createdAt`, `updatedAt` (camelCase) | F-03 |
 | VAL-07 | ProgramCreate | 이름 `" 모의면접 "`, 장소 `"  "`, 정원 10 → 통과(이름 공백 제거, 장소 `None`) / 빈 이름, 31자, 정원 0·1000, 장소 51자, 종료일 < 시작일 → 실패 | | F-13, F-14 |
 | VAL-09 | SessionCreate | 날짜 + 메모 `" OT "` → 통과(메모 `"OT"`), 메모 `"  "` → `None` / 날짜 없음, 메모 31자 → 실패 | | F-15 |
+| VAL-10 | ProgramCreate·ProgramUpdate 수료 기준 | 안 보냄·`null` → 80, `"70"` → 70 / 0, 101, `true`, 문자 → 실패, 수정에서 `null` → 실패 | | F-19 |
+| VAL-11 | SessionUpdate | 메모만 `null` → `{note: None}`, 날짜만 → 날짜 / 빈 객체, 날짜 `null`·빈 값, 메모 31자 → 실패 | | F-20 |
 | VAL-08 | ProgramUpdate | `{"capacity": null}` → 통과(정원 비우기로 기록됨) / `{}`, `{"name": null}` → 실패 | | F-13, F-14 |
 
 ## 2. 백엔드 — 저장소 (test_repository.py, test_sql_repository.py)
@@ -40,6 +42,9 @@
 | REPO-14 | 다른 프로그램 신청자 체크 / 없는 회차 / 없는 신청자 | `NotInProgramError` / `SessionNotFoundError` / `NotFoundError` | F-16 |
 | REPO-15 | 회차 삭제, 신청자 삭제, (신청자 없는) 프로그램 삭제 | 각각 관련 출석 기록·회차도 지워짐 | F-15, F-16 |
 | REPO-16 | 출석 기록이 있는 신청자를 다른 프로그램으로 옮김 / 기록 없는 신청자 옮김 | `HasAttendanceError` / 통과 | F-16 |
+| REPO-17 | 회차 날짜·메모 수정 | 출석 기록 그대로, 날짜순 다시 정렬, 다른 회차와 같은 날짜 → `DuplicateSessionError`, 자기 날짜 그대로 메모만 → 통과, 없는 id → `None` | F-20 |
+| REPO-18 | 수료 기준 | 만들면 80, 60으로 수정 → 목록에도 60 | F-19 |
+| REPO-19 | seed_demo (시연용 데이터) | 기본 프로그램이 있으면 내용만 채움, 프로그램·신청자·회차·출석 수가 정의와 같음, 연락처가 모두 `010-0000-`, 두 번째 실행은 `False`로 아무것도 안 함 | F-22 |
 
 ## 3. 백엔드 — API (backend/tests/test_applicants_api.py, test_programs_api.py)
 
@@ -77,6 +82,8 @@
 | API-28 | PUT /api/sessions/{id}/attendees/{applicantId} | 다른 프로그램 신청자 / 없는 회차 / 없는 신청자 | 400 "이 회차 프로그램의 신청자가 아닙니다." / 404 "회차를 찾을 수 없습니다." / 404 | F-16 |
 | API-29 | DELETE /api/sessions/{id} | 출석 기록 있는 회차 / 없는 회차 | 204, 이후 출석 기록도 없음 / 404 | F-15 |
 | API-30 | PATCH /api/applicants/{id} | 출석 기록이 있는데 `programId` 바꿈 | 409 `HAS_ATTENDANCE` | F-16 |
+| API-36 | PATCH /api/sessions/{id} | 날짜 바꾸고 메모 `null` / 다른 회차 날짜 / `{}` / 없는 회차 | 200 / 409 `DUPLICATE_SESSION` / 400 "수정할 항목이 없습니다." / 404 | F-20 |
+| API-37 | POST·PATCH /api/programs `completionRate` | 70으로 추가 → 100으로 수정 / 0, 101, `null`, 문자 | 200 / 400 "수료 기준은 1~100% 사이로 입력해 주세요." (API-17: 안 보내면 80) | F-19 |
 
 ## 3-1. 백엔드 — 로그인 (backend/tests/test_auth.py, test_auth_api.py, v2.0)
 
@@ -104,16 +111,19 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | LOGIC-06 | formatDate | `2026-10-29T05:00:00Z` | `2026.10.29` | F-03 |
 | LOGIC-07 | validateApplicant | 빈 이름 / 틀린 연락처 / 프로그램 안 고름(`""`) / 정상 | 각 문구 / `null` | F-02 |
 | LOGIC-08 | formatPhoneInput | `"010"`, `"0101234"`, `"01012345678"`, `"010-1234-5678"`, `"010 1234 5678abc9"` | `"010"`, `"010-1234"`, `"010-1234-5678"`, 그대로, 숫자 11자리까지만 | F-02 |
-| LOGIC-09 | toCsv | 2명 (한 명은 참석) | BOM + 머리글 줄 + 2줄, 프로그램 이름·참석/미참석·신청일 한국어로 | F-11 |
+| LOGIC-09 | toCsv (v2.1: 수료 칸 포함) | 2명 (한 명은 참석) | BOM + 머리글 줄 + 2줄, 프로그램 이름·참석/미참석·신청일 한국어로 | F-11 |
 | LOGIC-10 | toCsv | 이름에 쉼표·따옴표, `=`로 시작하는 값 | 큰따옴표로 감싸고 `""`로 바꿈, 수식 방지 `'` 붙임 | F-11 |
 | LOGIC-11 | summarizeByProgram | 프로그램 2개(정원 10, 제한 없음), 한쪽 3명 중 2명 참석 | 받은 순서대로, 67%, 정원·마감 여부 포함, 0명은 참석률 `null` | F-12, F-14 |
-| LOGIC-12 | validateProgram | 빈 이름 / 31자 / 장소 51자 / 정원 `0`·`1000`·`1.5` / 종료일 < 시작일 / 정상 | 각 문구 (API_SPEC과 같음) / `null` | F-13, F-14 |
+| LOGIC-12 | validateProgram (v2.1: 수료 기준 0·101·1.5 포함) | 빈 이름 / 31자 / 장소 51자 / 정원 `0`·`1000`·`1.5` / 종료일 < 시작일 / 정상 | 각 문구 (API_SPEC과 같음) / `null` | F-13, F-14 |
 | LOGIC-13 | formatPeriod | (null, null) / (11-10, null) / (11-10, 11-10) / (11-10, 11-12) | `기간 미정` / `2026.11.10` / `2026.11.10` / `2026.11.10 ~ 2026.11.12` | F-13 |
 | LOGIC-15 | sessionsOf, sessionTitle | 날짜가 섞인 회차 | 그 프로그램 것만 날짜순, `1회차 · 2026.11.10 (OT)`, 메모 없으면 괄호 없음 | F-15 |
 | LOGIC-16 | applicantSessionStat, hasAttended | 회차 3개 중 2번 출석 / 회차 없는 프로그램 | `{ attended: 2, total: 3 }`·`true` / `null`·`attended` 값 그대로 | F-16 |
 | LOGIC-17 | summarizeByProgram (회차) | 신청자 2명 × 회차 2개, 출석 기록 3개 | `sessionCount` 2, 출석률 75%, "참석한 사람"은 1회 이상 출석한 사람 수 | F-12, F-16 |
 | LOGIC-18 | toCsv (회차) | 회차 프로그램 신청자 | 참석 칸이 `출석 2/3회` | F-11, F-16 |
 | LOGIC-19 | saveToken, loadToken, clearToken | 저장 → 읽기 → 지우기 / sessionStorage가 에러를 던짐 | 같은 값 → `null` / 에러 없이 `null` | F-17 |
+| LOGIC-20 | isCompleted, attendanceRate | 4/5회 기준 80 / 2/3회 기준 80·60 / 회차 0개 | 수료 / 미수료·수료 / 미수료, 출석률 67% | F-19 |
+| LOGIC-21 | buildAttendanceSheet | 회차 2개(날짜 섞임), 신청자 2명 + 다른 프로그램 1명 | 이름순 × 날짜순, `O`, `1/2`, `50%`, 수료 기준 60%로 수료·미수료, 인쇄용은 연락처 가림 | F-21 |
+| LOGIC-22 | sheetToCsv, sheetFileName, escapeHtml, sheetToHtml | CSV 한 줄, 파일 이름의 `/` → `_`, 이름이 `<img src=x>` | BOM + 쉼표 줄, `출석표_모의면접 1_2반_20261103.csv`, HTML에 태그가 그대로 들어가지 않음 | F-21 |
 | LOGIC-14 | withApplicantCounts, isFull, programOptionLabel | 정원 2에 2명 / 정원 없음 | `applicantCount` 다시 계산, 마감 `true`·문구 `(마감)` / `false`·이름만 | F-14 |
 
 ## 5. 프런트 — API 호출 (src/lib/applicantApi.test.ts)
@@ -130,7 +140,7 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | CLIENT-06 | fetchPrograms, createProgram, updateProgram, deleteProgram | `/api/programs` 주소, 메서드, 본문이 명세와 같음 |
 | CLIENT-08 | login, setAuthToken | `POST /api/auth/login`에 `{ password }`. 토큰을 넣은 뒤에는 모든 요청에 `Authorization: Bearer {토큰}` |
 | CLIENT-09 | 공통 | 401을 받으면 `ApiError`(`status` 401, 서버 문구), 연결 실패는 `status` 0 |
-| CLIENT-07 | fetchSessions, createSession, deleteSession, fetchAttendance, setAttendance | 회차·출석 주소와 메서드 (체크는 PUT, 해제는 DELETE) |
+| CLIENT-07 | fetchSessions, createSession, updateSession(v2.1), deleteSession, fetchAttendance, setAttendance | 회차·출석 주소와 메서드 (수정은 PATCH, 체크는 PUT, 해제는 DELETE) |
 
 ## 6. 프런트 — 컴포넌트 (src/components/*.test.tsx)
 
@@ -166,15 +176,15 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | UI-28 | ProgramSummary | 정원 2명 모의면접에 2명 중 1명 참석, 정원 없는 프로그램 0명 | 모의면접 카드 "신청 2/2명 · 참석 1명", "참석률 50%", **마감** 표시 / 다른 카드 "신청 0명 · 참석 0명", "참석률 -" | F-12, F-14 |
 | UI-29 | ExportButton | 0명 | 버튼 비활성화 | F-11 |
 | UI-30 | ExportButton | 2명 있을 때 클릭 | `신청자명단_YYYYMMDD.csv` 파일 내려받기가 실행됨 | F-11 |
-| UI-31 | ProgramForm | 이름·시작일·장소·정원 입력 후 **프로그램 추가** | `onSubmit({ name, startDate, endDate: null, location, capacity: 숫자 })`, 성공하면 입력칸 비움 | F-13 |
+| UI-31 | ProgramForm | 이름·시작일·장소·정원 입력 후 **프로그램 추가** | `onSubmit({ name, startDate, endDate: null, location, capacity: 숫자, completionRate: 80 })` (수료 기준을 비우면 80, v2.1), 성공하면 입력칸 비움 | F-13 |
 | UI-32 | ProgramForm | 빈 이름 / 정원 0 / 종료일 < 시작일 | `onSubmit` 호출 안 됨, 각 문구 표시 | F-13, F-14 |
-| UI-33 | ProgramManager | 펼쳐서 보기 | 제목 "프로그램 관리 (2개)", 줄마다 기간·장소·"신청 1/10명", 신청자 있는 프로그램의 삭제 버튼은 비활성화 | F-13 |
+| UI-33 | ProgramManager | 펼쳐서 보기 | 제목 "프로그램 관리 (2개)", 줄마다 기간·장소·"신청 1/10명"·"수료 기준 80%"(v2.1), 신청자 있는 프로그램의 삭제 버튼은 비활성화 | F-13 |
 | UI-34 | ProgramManager | 수정 → 장소 바꾸고 **저장** | `onUpdate(id, 전체 값)` 호출, 성공하면 보기로 돌아감 | F-13 |
 | UI-35 | ProgramManager | 신청자 없는 프로그램 삭제 → **삭제 확인** | 확인 문구 후 `onDelete(id)` | F-13 |
 | UI-36 | ApplicantForm | 정원 2에 2명인 프로그램 | 선택지에 "(마감)", 선택할 수 없음(disabled). 정원 10에 3명이면 "(3/10명)" | F-14 |
 | UI-37 | ApplicantForm | 프로그램 0개 | "먼저 프로그램 관리에서 프로그램을 추가해 주세요." | F-13 |
 | UI-38 | ApplicantItem | `sessionStat` = 2/3 | "출석 2/3회" 표시, 참석 체크박스 없음 | F-16 |
-| UI-39 | ProgramSummary | 회차 2개 프로그램, 신청 2명, 출석 기록 3개 | "신청 2명 · 회차 2개", "출석률 75%" | F-12, F-16 |
+| UI-39 | ProgramSummary | 회차 2개 프로그램, 신청 2명, 출석 기록 3개 | "신청 2명 · 회차 2개", "출석률 75%", "수료 1명 (기준 80%)" (v2.1) | F-12, F-16 |
 | UI-40 | AttendanceBook | 회차 없는 프로그램 → 날짜·메모 넣고 **회차 추가** / 날짜 없이 추가 | 안내 문구, `onAddSession(프로그램 id, { sessionDate, note })` / "회차 날짜를 입력해 주세요." | F-15 |
 | UI-41 | AttendanceBook | 회차 2개, 신청자 2명, 1회차에 1명 출석 | 1회차 버튼 `aria-pressed`, 제목 "… 출석 1/2명", 출석한 사람만 체크, 체크박스 누르면 `onToggle(회차, 신청자, 반대 상태)` | F-16 |
 | UI-42 | AttendanceBook | 2회차 고르고 **2회차 삭제** → **삭제 확인** | 확인 문구 후 `onDeleteSession(2회차 id)` | F-15 |
@@ -182,6 +192,10 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | UI-44 | LoginForm | 빈 칸으로 로그인 / 비밀번호 넣고 로그인 | "비밀번호를 입력해 주세요.", `onLogin` 안 부름 / `onLogin("비밀번호")` | F-17 |
 | UI-45 | LoginForm | `onLogin`이 "비밀번호가 맞지 않습니다." 돌려줌 | 그 문구를 `role="alert"`로, 입력칸 비움 | F-17 |
 | UI-46 | LoginForm | `notice` = "로그인이 필요합니다. 다시 로그인해 주세요." | `role="status"`로 보임 | F-18 |
+| UI-47 | ApplicantItem | `sessionStat` 4/5 (기준 80%) / 0/3 | "수료" 표시, 수정 칸의 프로그램 선택 잠김 + 안내 / 수료 없음, 선택 가능 | F-16, F-19 |
+| UI-48 | AttendanceBook | **1회차 수정** → 날짜 비우고 저장 / 날짜·메모 바꿔 저장 | "회차 날짜를 입력해 주세요." / `onUpdateSession(10, { sessionDate, note: null })`, 수정 칸 닫힘 | F-20 |
+| UI-49 | AttendanceBook | 회차 없음 + 참석 체크된 신청자 1명 | "참석 체크된 신청자가 1명 있습니다…" 안내 | F-16 |
+| UI-50 | AttendanceBook | 2회 모두 출석한 사람 / 출석표 CSV / 팝업이 막힌 출석표 인쇄 | "수료" 표시 / 파일 내려받기 1번 / "팝업이 막혀 인쇄 창을 열 수 없습니다…" | F-19, F-21 |
 
 ## 7. 직접 해 보는 확인 (브라우저)
 
@@ -192,6 +206,8 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | MAN-03 | 375px 모바일 보기 | 깨지지 않음 | — |
 | MAN-04 | v1.1 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.2) | 프로그램 4개가 생기고, 기존 신청자가 원래 프로그램에 그대로 연결됨 | F-07, F-13 |
 | MAN-06 | `backend/.env`에 `ADMIN_PASSWORD`를 넣고 서버 재시작 → 로그인 → 새로고침 → 탭 닫고 다시 열기 → 로그아웃 | 로그인 후 명단이 보임, 새로고침해도 유지, 탭을 닫으면 다시 로그인, 로그아웃하면 로그인 화면 | F-17, F-18 |
+| MAN-07 | v2.0 데이터가 있는 `dev.db`에 `alembic upgrade head` (v2.1) | 기존 프로그램의 수료 기준이 80%로 채워지고 나머지 데이터는 그대로 | F-07, F-19 |
+| MAN-08 | 빈 DB에서 `uv run python -m app.seed` → 한 번 더 실행 / 출석표 인쇄 | 시연용 데이터가 들어감 → "이미 신청자나 회차가 있어서 넣지 않았습니다." / 새 창에 표가 열리고 인쇄 창이 뜸 | F-21, F-22 |
 | MAN-05 | v1.2 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.3) | 회차·출석 테이블이 생기고, 기존 신청자·참석 체크는 그대로 | F-07, F-16 |
 
 ## 기능 ↔ 테스트 연결 확인
@@ -213,6 +229,10 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | F-13 프로그램 관리 | VAL-07~08, REPO-06, REPO-09, API-17~20, API-22, LOGIC-12~13, CLIENT-06, UI-31~35, UI-37, MAN-04 |
 | F-15 회차 관리 | VAL-09, REPO-12, REPO-15, API-25~26, API-29, LOGIC-15, CLIENT-07, UI-40, UI-42~43 |
 | F-16 회차별 출석 | REPO-13~16, API-27~28, API-30, LOGIC-16~18, CLIENT-07, UI-38~39, UI-41, UI-43, MAN-05 |
+| F-19 수료 판정 | VAL-10, REPO-18, API-17, API-37, LOGIC-11~12, LOGIC-17, LOGIC-20, UI-39, UI-47, UI-50, MAN-07 |
+| F-20 회차 수정 | VAL-11, REPO-17, API-36, CLIENT-07, UI-48 |
+| F-21 출석표 내보내기 | LOGIC-21~22, UI-50, MAN-08 |
+| F-22 시연용 데이터 | REPO-19, MAN-08 |
 | F-17 관리자 로그인 | AUTH-02, API-31~32, API-34~35, LOGIC-19, CLIENT-08, UI-44~45, MAN-06 |
 | F-18 명단 보호 | AUTH-01, API-33, CLIENT-09, UI-46, MAN-06 |
 | F-14 정원 관리 | VAL-07~08, REPO-07~08, REPO-11, API-21, API-23~24, LOGIC-11~12, LOGIC-14, UI-28, UI-32, UI-36 |

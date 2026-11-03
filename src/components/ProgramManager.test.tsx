@@ -21,6 +21,7 @@ describe("ProgramForm (v1.2)", () => {
       endDate: null,
       location: "2층 강의실",
       capacity: 20,
+      completionRate: 80, // 비워 두면 기본 80% (v2.1)
     });
     expect(screen.getByLabelText("프로그램 이름")).toHaveValue("");
   });
@@ -73,11 +74,11 @@ describe("ProgramManager (v1.2)", () => {
     return { ...handlers, user };
   }
 
-  test("UI-33 펼치면 기간·장소·정원이 보이고, 신청자가 있으면 삭제를 막는다", async () => {
+  test("UI-33 펼치면 기간·장소·정원·수료 기준이 보이고, 신청자가 있으면 삭제를 막는다", async () => {
     const { user } = setup();
     await user.click(screen.getByText("프로그램 관리 (2개)"));
-    expect(screen.getByText("2026.11.10 ~ 2026.11.12 · 3층 세미나실 · 신청 1/10명")).toBeInTheDocument();
-    expect(screen.getByText("기간 미정 · 장소 미정 · 신청 0명 · 정원 제한 없음")).toBeInTheDocument();
+    expect(screen.getByText("2026.11.10 ~ 2026.11.12 · 3층 세미나실 · 신청 1/10명 · 수료 기준 80%")).toBeInTheDocument();
+    expect(screen.getByText("기간 미정 · 장소 미정 · 신청 0명 · 정원 제한 없음 · 수료 기준 80%")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "모의면접 삭제" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "취업 특강 삭제" })).toBeEnabled();
   });
@@ -98,6 +99,7 @@ describe("ProgramManager (v1.2)", () => {
       endDate: "2026-11-12",
       location: "2층 강의실",
       capacity: 10,
+      completionRate: 80,
     });
     expect(await screen.findByRole("button", { name: "모의면접 수정" })).toBeInTheDocument();
   });

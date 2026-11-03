@@ -15,6 +15,7 @@
 | DELETE | `/api/programs/{id}` | 프로그램 삭제 (신청자가 없을 때만, 회차도 함께 삭제) | 204 | v1.2 |
 | GET | `/api/sessions` | 전체 회차 목록 (프로그램별 날짜순) | 200 | v1.3 |
 | POST | `/api/programs/{id}/sessions` | 그 프로그램에 회차 추가 | 201 | v1.3 |
+| PATCH | `/api/sessions/{id}` | 회차 날짜·메모 수정 (출석 기록은 그대로) | 200 | v2.1 |
 | DELETE | `/api/sessions/{id}` | 회차 삭제 (출석 기록도 삭제) | 204 | v1.3 |
 | GET | `/api/attendance` | 전체 출석 기록 | 200 | v1.3 |
 | PUT | `/api/sessions/{id}/attendees/{applicantId}` | 출석으로 체크 | 204 | v1.3 |
@@ -95,17 +96,19 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
     "endDate": "2026-11-12",
     "location": "3층 세미나실",
     "capacity": 10,
+    "completionRate": 80,
     "applicantCount": 4
   }
 ]
 ```
 `startDate`, `endDate`, `location`, `capacity`는 정하지 않았으면 `null`입니다. `capacity`가 `null`이면 정원 제한이 없습니다.
+`completionRate`(v2.1)는 수료 기준 출석률(%)이고 항상 1~100 사이 숫자입니다.
 
 ### POST /api/programs
 ```json
-{ "name": "자기소개서 특강", "startDate": "2026-11-20", "endDate": null, "location": "2층 강의실", "capacity": 20 }
+{ "name": "자기소개서 특강", "startDate": "2026-11-20", "endDate": null, "location": "2층 강의실", "capacity": 20, "completionRate": 80 }
 ```
-`name`만 필수입니다. 응답 201: 만들어진 프로그램 (`applicantCount=0`)
+`name`만 필수입니다. `completionRate`를 빼거나 `null`로 보내면 80. 응답 201: 만들어진 프로그램 (`applicantCount=0`)
 
 | 상황 | 응답 |
 |---|---|
@@ -113,11 +116,12 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 | 이름 31자 이상 | 400 `VALIDATION_ERROR` "프로그램 이름은 30자 이하로 입력해 주세요." |
 | 장소 51자 이상 | 400 `VALIDATION_ERROR` "장소는 50자 이하로 입력해 주세요." |
 | 정원이 1~999가 아님 | 400 `VALIDATION_ERROR` "정원은 1~999명 사이로 입력해 주세요." |
+| 수료 기준이 1~100이 아님 (v2.1) | 400 `VALIDATION_ERROR` "수료 기준은 1~100% 사이로 입력해 주세요." |
 | 종료일이 시작일보다 빠름 | 400 `VALIDATION_ERROR` "종료일은 시작일보다 빠를 수 없습니다." |
 | 같은 이름이 이미 있음 | 409 `DUPLICATE_PROGRAM` "같은 이름의 프로그램이 이미 있습니다." |
 
 ### PATCH /api/programs/{id}
-바꿀 항목만 보냅니다. 값을 `null`로 보내면 그 항목을 비웁니다(예: `"capacity": null` → 정원 제한 없음). 이름은 비울 수 없습니다.
+바꿀 항목만 보냅니다. 값을 `null`로 보내면 그 항목을 비웁니다(예: `"capacity": null` → 정원 제한 없음). 이름과 수료 기준은 비울 수 없습니다.
 
 | 상황 | 응답 |
 |---|---|
@@ -161,6 +165,19 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 | 메모 31자 이상 | 400 `VALIDATION_ERROR` "메모는 30자 이하로 입력해 주세요." |
 | 같은 날짜 회차가 이미 있음 | 409 `DUPLICATE_SESSION` "같은 날짜의 회차가 이미 있습니다." |
 | 없는 프로그램 | 404 `NOT_FOUND` "프로그램을 찾을 수 없습니다." |
+
+### PATCH /api/sessions/{id} (v2.1)
+```json
+{ "sessionDate": "2026-11-11", "note": null }
+```
+바꿀 항목만 보냅니다. `note`를 `null`로 보내면 메모를 지웁니다. 날짜는 비울 수 없습니다. 출석 기록은 그대로 남습니다. 응답 200: 바뀐 회차
+
+| 상황 | 응답 |
+|---|---|
+| 빈 객체 `{}` | 400 `VALIDATION_ERROR` "수정할 항목이 없습니다." |
+| 날짜를 `null`·빈 값으로 | 400 `VALIDATION_ERROR` "회차 날짜를 입력해 주세요." |
+| 같은 프로그램의 다른 회차와 날짜가 겹침 | 409 `DUPLICATE_SESSION` "같은 날짜의 회차가 이미 있습니다." |
+| 없는 회차 | 404 `NOT_FOUND` "회차를 찾을 수 없습니다." |
 
 ### DELETE /api/sessions/{id}
 응답 204. 그 회차의 출석 기록도 함께 지웁니다.

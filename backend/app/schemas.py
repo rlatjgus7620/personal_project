@@ -16,6 +16,8 @@ PHONE_PATTERN = re.compile(r"^010-\d{4}-\d{4}$")
 PROGRAM_NAME_MAX_LENGTH = 30
 LOCATION_MAX_LENGTH = 50
 CAPACITY_MIN, CAPACITY_MAX = 1, 999
+COMPLETION_MIN, COMPLETION_MAX = 1, 100
+DEFAULT_COMPLETION_RATE = 80
 
 # 에러 문구 (API_SPEC.md와 같음)
 MSG_NAME_REQUIRED = "이름을 입력해 주세요."
@@ -28,6 +30,7 @@ MSG_PROGRAM_NAME_TOO_LONG = f"프로그램 이름은 {PROGRAM_NAME_MAX_LENGTH}�
 MSG_LOCATION_TOO_LONG = f"장소는 {LOCATION_MAX_LENGTH}자 이하로 입력해 주세요."
 MSG_CAPACITY_RANGE = f"정원은 {CAPACITY_MIN}~{CAPACITY_MAX}명 사이로 입력해 주세요."
 MSG_PERIOD_ORDER = "종료일은 시작일보다 빠를 수 없습니다."
+MSG_COMPLETION_RANGE = f"수료 기준은 {COMPLETION_MIN}~{COMPLETION_MAX}% 사이로 입력해 주세요."
 NOTE_MAX_LENGTH = 30
 MSG_SESSION_DATE_REQUIRED = "회차 날짜를 입력해 주세요."
 MSG_NOTE_TOO_LONG = f"메모는 {NOTE_MAX_LENGTH}자 이하로 입력해 주세요."
@@ -96,6 +99,17 @@ def check_capacity(value: object) -> int | None:
     return value
 
 
+def check_completion_rate(value: object) -> int:
+    """수료 기준 출석률: 1~100 정수 (v2.1)"""
+    if isinstance(value, bool):
+        raise ValueError(MSG_COMPLETION_RANGE)
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    if not isinstance(value, int) or not COMPLETION_MIN <= value <= COMPLETION_MAX:
+        raise ValueError(MSG_COMPLETION_RANGE)
+    return value
+
+
 def check_period(start: date | None, end: date | None) -> None:
     if start is not None and end is not None and end < start:
         raise ValueError(MSG_PERIOD_ORDER)
@@ -126,6 +140,15 @@ class ProgramCreate(CamelModel):
     end_date: date | None = None
     location: str | None = None
     capacity: int | None = None
+    completion_rate: int = DEFAULT_COMPLETION_RATE  # v2.1
+
+    @field_validator("completion_rate", mode="before")
+    @classmethod
+    def _completion(cls, value: object) -> int:
+        # 비우거나 null이면 기본값 80
+        if value is None or value == "":
+            return DEFAULT_COMPLETION_RATE
+        return check_completion_rate(value)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -160,11 +183,17 @@ class ProgramUpdate(CamelModel):
     end_date: date | None = None
     location: str | None = None
     capacity: int | None = None
+    completion_rate: int | None = None  # v2.1 (null로 비울 수 없음)
 
     @field_validator("name", mode="before")
     @classmethod
     def _name(cls, value: object) -> str:
         return clean_program_name(value)  # 이름은 null로 비울 수 없음
+
+    @field_validator("completion_rate", mode="before")
+    @classmethod
+    def _completion(cls, value: object) -> int:
+        return check_completion_rate(value)
 
     @field_validator("location", mode="before")
     @classmethod
@@ -197,6 +226,7 @@ class ProgramOut(CamelModel):
     end_date: date | None
     location: str | None
     capacity: int | None
+    completion_rate: int = DEFAULT_COMPLETION_RATE
     applicant_count: int = 0
 
 
@@ -232,6 +262,35 @@ class SessionCreate(CamelModel):
     @classmethod
     def _note(cls, value: object) -> str | None:
         return clean_note(value)
+
+
+class SessionUpdate(CamelModel):
+    """PATCH /api/sessions/{id} 요청 본문 (v2.1). 보낸 항목만 바꿈. 메모는 null로 비울 수 있음"""
+
+    session_date: date | None = None
+    note: str | None = None
+
+    @field_validator("session_date", mode="before")
+    @classmethod
+    def _date(cls, value: object) -> object:
+        if value is None or value == "":
+            raise ValueError(MSG_SESSION_DATE_REQUIRED)  # 날짜는 비울 수 없음
+        return value
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _note(cls, value: object) -> str | None:
+        return clean_note(value)
+
+    @model_validator(mode="after")
+    def _check(self) -> "SessionUpdate":
+        if not self.model_fields_set:
+            raise ValueError(MSG_NOTHING_TO_UPDATE)
+        return self
+
+    def changes(self) -> dict[str, object]:
+        """실제로 보낸 항목만 (메모 null 포함)"""
+        return {field: getattr(self, field) for field in self.model_fields_set}
 
 
 class SessionOut(CamelModel):

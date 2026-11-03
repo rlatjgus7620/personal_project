@@ -53,7 +53,8 @@ export default function ProgramManager({ programs, onAdd, onUpdate, onDelete }: 
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-slate-900">{p.name}</p>
                     <p className="text-xs text-slate-500">
-                      {formatPeriod(p.startDate, p.endDate)} · {p.location ?? "장소 미정"} · {capacityText(p)}
+                      {formatPeriod(p.startDate, p.endDate)} · {p.location ?? "장소 미정"} · {capacityText(p)} · 수료 기준{" "}
+                      {p.completionRate}%
                     </p>
                   </div>
                   {confirmingId === p.id ? (

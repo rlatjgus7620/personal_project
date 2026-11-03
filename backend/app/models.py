@@ -32,6 +32,8 @@ class Program(Base):
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     location: Mapped[str | None] = mapped_column(String(50), nullable=True)
     capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = 제한 없음
+    # 수료 기준 출석률(%) (v2.1). 회차가 있는 프로그램에서 이 이상 출석하면 수료
+    completion_rate: Mapped[int] = mapped_column(Integer, nullable=False, server_default="80")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

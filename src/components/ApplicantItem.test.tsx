@@ -158,3 +158,37 @@ describe("회차 출석 (v1.3)", () => {
     expect(screen.queryByRole("checkbox", { name: "김테스트 참석" })).not.toBeInTheDocument();
   });
 });
+
+describe("수료와 프로그램 잠금 (v2.0.1~v2.1)", () => {
+  function renderWith(sessionStat: { attended: number; total: number }) {
+    const user = userEvent.setup();
+    render(
+      <ul>
+        <ApplicantItem
+          applicant={makeApplicant({ id: 7, programId: 3 })}
+          programs={TEST_PROGRAMS}
+          onToggle={jest.fn()}
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+          sessionStat={sessionStat}
+        />
+      </ul>,
+    );
+    return user;
+  }
+
+  test("UI-47 수료 기준(80%) 이상이면 '수료', 출석 기록이 있으면 수정에서 프로그램을 잠근다", async () => {
+    const user = renderWith({ attended: 4, total: 5 });
+    expect(screen.getByText("수료")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "김테스트 수정" }));
+    expect(screen.getByLabelText("프로그램 수정")).toBeDisabled();
+    expect(screen.getByText("출석 기록이 있어 프로그램은 바꿀 수 없습니다.")).toBeInTheDocument();
+  });
+
+  test("UI-47 기준 미만이면 수료 표시가 없고, 출석 0회면 프로그램을 바꿀 수 있다", async () => {
+    const user = renderWith({ attended: 0, total: 3 });
+    expect(screen.queryByText("수료")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "김테스트 수정" }));
+    expect(screen.getByLabelText("프로그램 수정")).toBeEnabled();
+  });
+});

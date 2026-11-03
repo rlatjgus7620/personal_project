@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import type { Applicant, ApplicantChanges, Program, SessionStat } from "../types/applicant";
-import { sessionStatLabel } from "../lib/attendance";
+import { isCompleted, sessionStatLabel } from "../lib/attendance";
 import { formatDate, formatPhoneInput, maskPhone } from "../lib/format";
 import { NAME_MAX_LENGTH, toProgramId, validateApplicant } from "../lib/validation";
 import { isFull, programName, programOptionLabel } from "../lib/programs";
@@ -77,6 +77,12 @@ export default function ApplicantItem({
     if (event.key === "Escape") cancelEdit();
   }
 
+  // 출석 기록이 있으면 다른 프로그램으로 옮길 수 없음 (서버도 409로 막음, v2.0.1)
+  const programLocked = sessionStat !== null && sessionStat.attended > 0;
+  // 수료 (v2.1): 회차가 있는 프로그램에서 출석률이 수료 기준 이상
+  const completionRate = programs.find((p) => p.id === applicant.programId)?.completionRate ?? 80;
+  const completed = sessionStat !== null && isCompleted(sessionStat, completionRate);
+
   // 초록 줄: 회차 없는 프로그램은 참석 체크, 회차 있는 프로그램은 1회 이상 출석
   const attended = sessionStat === null ? applicant.attended : sessionStat.attended > 0;
   const rowColor = attended
@@ -111,8 +117,10 @@ export default function ApplicantItem({
           <select
             aria-label="프로그램 수정"
             value={draft.program}
+            disabled={programLocked}
+            title={programLocked ? "출석 기록이 있어 프로그램을 바꿀 수 없습니다" : undefined}
             onChange={(e) => setDraft({ ...draft, program: e.target.value })}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100 disabled:text-slate-500"
           >
             {programs.map((p) => (
               // 마감된 다른 프로그램으로는 옮길 수 없음 (지금 프로그램은 그대로 선택 가능)
@@ -135,6 +143,9 @@ export default function ApplicantItem({
           >
             취소
           </button>
+          {programLocked && (
+            <p className="text-xs text-slate-500 sm:col-span-5">출석 기록이 있어 프로그램은 바꿀 수 없습니다.</p>
+          )}
           {message && (
             <p role="alert" className="text-sm text-red-600 sm:col-span-5">
               {message}
@@ -169,6 +180,11 @@ export default function ApplicantItem({
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-slate-900">
           {applicant.name}
+          {completed && (
+            <span className="ml-2 whitespace-nowrap rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">
+              수료
+            </span>
+          )}
           {sessionStat === null && applicant.attended && (
             <span className="ml-2 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">
               참석 완료

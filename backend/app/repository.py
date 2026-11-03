@@ -37,6 +37,7 @@ from app.schemas import (
     ProgramUpdate,
     SessionCreate,
     SessionOut,
+    SessionUpdate,
 )
 
 
@@ -65,6 +66,10 @@ class ApplicantRepository(Protocol):
 
     def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
         """회차 추가. 없는 프로그램이면 None, 같은 날짜가 있으면 DuplicateSessionError"""
+        ...
+
+    def update_session(self, session_id: int, data: SessionUpdate) -> SessionOut | None:
+        """회차 날짜·메모 수정 (v2.1). 없는 id면 None, 같은 날짜가 있으면 DuplicateSessionError"""
         ...
 
     def delete_session(self, session_id: int) -> bool:
@@ -223,6 +228,19 @@ class MemoryApplicantRepository:
         self._sessions.append(session)
         self._next_session_id += 1
         return session
+
+    def update_session(self, session_id: int, data: SessionUpdate) -> SessionOut | None:
+        current = next((s for s in self._sessions if s.id == session_id), None)
+        if current is None:
+            return None
+        updated = current.model_copy(update=data.changes())
+        if any(
+            s.program_id == updated.program_id and s.session_date == updated.session_date and s.id != session_id
+            for s in self._sessions
+        ):
+            raise DuplicateSessionError()
+        self._sessions = [updated if s.id == session_id else s for s in self._sessions]
+        return self._session_out(updated)
 
     def delete_session(self, session_id: int) -> bool:
         if not any(s.id == session_id for s in self._sessions):

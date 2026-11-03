@@ -145,6 +145,15 @@ export function createSession(programId: number, input: SessionInput): Promise<S
   });
 }
 
+// 회차 날짜·메모 수정 (v2.1). 보낸 항목만 바뀜
+export function updateSession(id: number, input: Partial<SessionInput>): Promise<Session> {
+  return request<Session>(`/api/sessions/${id}`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+}
+
 export function deleteSession(id: number): Promise<void> {
   return request<void>(`/api/sessions/${id}`, { method: "DELETE" });
 }

@@ -28,6 +28,8 @@ test("UI-39 회차가 있는 프로그램은 회차 수와 출석률을 보여�
   const card = screen.getByRole("article", { name: "모의면접" });
   expect(within(card).getByText("신청 2명 · 회차 2개")).toBeInTheDocument();
   expect(within(card).getByText("출석률 75%")).toBeInTheDocument();
+  // v2.1: 2/2회(100%)인 1명만 수료 기준 80% 이상
+  expect(within(card).getByText("수료 1명 (기준 80%)")).toBeInTheDocument();
 });
 
 test("UI-28 프로그램별 신청·참석 인원, 정원, 참석률, 마감을 보여준다", () => {

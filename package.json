@@ -1,6 +1,6 @@
 {
-  "name": "program-attendance",
-  "version": "2.0.0",
+  "name": "educheck",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -32,7 +32,14 @@ test("LOGIC-07 선택칸 값을 프로그램 번호로 바꾼다", () => {
   expect(toProgramId("0")).toBeNull();
 });
 
-const PROGRAM = { name: "모의면접", startDate: null, endDate: null, location: null, capacity: null };
+const PROGRAM = {
+  name: "모의면접",
+  startDate: null,
+  endDate: null,
+  location: null,
+  capacity: null,
+  completionRate: 80,
+};
 
 describe("LOGIC-12 validateProgram", () => {
   test("이름", () => {
@@ -50,6 +57,13 @@ describe("LOGIC-12 validateProgram", () => {
     expect(validateProgram({ ...PROGRAM, capacity: 1.5 })).toBe(MESSAGES.capacityRange);
   });
 
+  test("수료 기준 0, 101, 1.5 (v2.1)", () => {
+    expect(validateProgram({ ...PROGRAM, completionRate: 0 })).toBe(MESSAGES.completionRange);
+    expect(validateProgram({ ...PROGRAM, completionRate: 101 })).toBe(MESSAGES.completionRange);
+    expect(validateProgram({ ...PROGRAM, completionRate: 1.5 })).toBe(MESSAGES.completionRange);
+    expect(validateProgram({ ...PROGRAM, completionRate: 100 })).toBeNull();
+  });
+
   test("종료일이 시작일보다 빠름", () => {
     expect(validateProgram({ ...PROGRAM, startDate: "2026-11-12", endDate: "2026-11-10" })).toBe(
       MESSAGES.periodOrder,
@@ -59,7 +73,14 @@ describe("LOGIC-12 validateProgram", () => {
   test("정상 입력은 null", () => {
     expect(validateProgram(PROGRAM)).toBeNull();
     expect(
-      validateProgram({ name: "특강", startDate: "2026-11-10", endDate: "2026-11-12", location: "3층", capacity: 10 }),
+      validateProgram({
+        name: "특강",
+        startDate: "2026-11-10",
+        endDate: "2026-11-12",
+        location: "3층",
+        capacity: 10,
+        completionRate: 80,
+      }),
     ).toBeNull();
   });
 });

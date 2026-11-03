@@ -14,9 +14,9 @@ test("LOGIC-09 toCsv는 BOM, 머리글, 사람마다 한 줄을 만든다", () =
   expect(csv.startsWith("﻿")).toBe(true);
   const lines = csv.slice(1).trimEnd().split("\r\n");
   expect(lines).toEqual([
-    "번호,이름,연락처,프로그램,참석,신청일",
-    "1,김테스트,010-1234-5678,모의면접,참석,2026.10.29",
-    "2,이테스트,010-2222-3333,이력서 클리닉,미참석,2026.10.29",
+    "번호,이름,연락처,프로그램,참석,수료,신청일",
+    "1,김테스트,010-1234-5678,모의면접,참석,,2026.10.29",
+    "2,이테스트,010-2222-3333,이력서 클리닉,미참석,,2026.10.29",
   ]);
 });
 
@@ -51,6 +51,8 @@ test("LOGIC-11 summarizeByProgram은 받은 순서대로 요약하고 정원·�
     capacity: 3,
     full: true,
     sessionCount: 0,
+    completed: 0,
+    completionRate: 80,
     rate: 67,
   });
   expect(result[1].total).toBe(0);
@@ -74,6 +76,7 @@ test("LOGIC-17 회차가 있는 프로그램은 출석률 = 출석 기록 ÷ (�
   expect(stat.sessionCount).toBe(2);
   expect(stat.rate).toBe(75);
   expect(stat.attended).toBe(2); // 1회 이상 출석한 사람 수
+  expect(stat.completed).toBe(1); // 2/2회(100%)만 수료 기준 80% 이상 (v2.1)
   expect(summarizeByProgram(programs, [], sessions, [])[0].rate).toBeNull();
 });
 
@@ -96,6 +99,6 @@ test("LOGIC-18 toCsv는 회차가 있는 프로그램의 참석 칸을 '출석 M
     ],
   );
   const lines = csv.slice(1).trimEnd().split("\r\n");
-  expect(lines[1]).toBe("1,김테스트,010-1234-5678,모의면접,출석 2/3회,2026.10.29");
-  expect(lines[2]).toBe("2,김테스트,010-2222-3333,이력서 클리닉,참석,2026.10.29");
+  expect(lines[1]).toBe("1,김테스트,010-1234-5678,모의면접,출석 2/3회,미수료,2026.10.29");
+  expect(lines[2]).toBe("2,김테스트,010-2222-3333,이력서 클리닉,참석,,2026.10.29");
 });

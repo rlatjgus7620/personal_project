@@ -53,3 +53,15 @@ export function hasAttended(
 export function sessionStatLabel(stat: SessionStat): string {
   return `출석 ${stat.attended}/${stat.total}회`;
 }
+
+// ---------- 수료 판정 (v2.1) ----------
+
+// 출석률(%)이 수료 기준 이상이면 수료. 회차가 없으면(total 0) 수료 판정 없음
+export function isCompleted(stat: SessionStat, completionRate: number): boolean {
+  return stat.total > 0 && stat.attended * 100 >= completionRate * stat.total;
+}
+
+// 출석률(%) 반올림
+export function attendanceRate(stat: SessionStat): number {
+  return stat.total === 0 ? 0 : Math.round((stat.attended / stat.total) * 100);
+}

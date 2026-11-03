@@ -35,7 +35,10 @@ def test_api_17_프로그램을_추가하면_201과_camelCase(client: TestClient
     assert body["location"] == "3층 세미나실"
     assert body["capacity"] == 10
     assert body["applicantCount"] == 0
-    assert set(body) == {"id", "name", "startDate", "endDate", "location", "capacity", "applicantCount"}
+    assert body["completionRate"] == 80  # v2.1: 안 보내면 기본 80%
+    assert set(body) == {
+        "id", "name", "startDate", "endDate", "location", "capacity", "completionRate", "applicantCount"
+    }
 
 
 def test_api_18_빈_이름은_400_같은_이름은_409(client: TestClient) -> None:
@@ -95,3 +98,15 @@ def test_api_22_삭제는_신청자가_없을_때만(client: TestClient) -> None
     assert response.status_code == 204
     assert response.content == b""
     assert client.delete(f"{URL}/999").status_code == 404
+
+
+def test_api_37_수료_기준은_1부터_100까지_바꿀_수_있다(client: TestClient) -> None:
+    program = create(client, completionRate=70)
+    assert program["completionRate"] == 70
+    updated = client.patch(f"{URL}/{program['id']}", json={"completionRate": 100})
+    assert updated.status_code == 200
+    assert updated.json()["completionRate"] == 100
+    for bad in [0, 101, None, "많이"]:
+        response = client.patch(f"{URL}/{program['id']}", json={"completionRate": bad})
+        assert response.status_code == 400, bad
+        assert error_of(response.json())["message"] == "수료 기준은 1~100% 사이로 입력해 주세요."

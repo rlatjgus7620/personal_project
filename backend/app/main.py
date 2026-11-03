@@ -18,7 +18,7 @@ from app.errors import AppError
 from app.routers import applicants, auth, programs, sessions
 from app.schemas import MSG_PASSWORD_REQUIRED, MSG_PROGRAM_REQUIRED, MSG_SESSION_DATE_REQUIRED
 
-app = FastAPI(title="교육 프로그램 신청·참석 관리 API", version="2.0.0")
+app = FastAPI(title="에듀체크 API (교육 프로그램 신청·참석 관리)", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,

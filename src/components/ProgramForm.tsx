@@ -2,7 +2,14 @@
 
 import { useId, useState, type FormEvent } from "react";
 import type { Program, ProgramInput } from "../types/applicant";
-import { LOCATION_MAX_LENGTH, PROGRAM_NAME_MAX_LENGTH, validateProgram } from "../lib/validation";
+import {
+  COMPLETION_MAX,
+  COMPLETION_MIN,
+  DEFAULT_COMPLETION_RATE,
+  LOCATION_MAX_LENGTH,
+  PROGRAM_NAME_MAX_LENGTH,
+  validateProgram,
+} from "../lib/validation";
 
 type Props = {
   initial?: Program; // 수정할 때 기존 값
@@ -11,7 +18,14 @@ type Props = {
   onCancel?: () => void; // 있으면 취소 버튼을 보여줌
 };
 
-type Draft = { name: string; startDate: string; endDate: string; location: string; capacity: string };
+type Draft = {
+  name: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+  capacity: string;
+  completionRate: string; // v2.1
+};
 
 function toDraft(program?: Program): Draft {
   const capacity = program?.capacity;
@@ -21,18 +35,21 @@ function toDraft(program?: Program): Draft {
     endDate: program?.endDate ?? "",
     location: program?.location ?? "",
     capacity: capacity === null || capacity === undefined ? "" : String(capacity),
+    completionRate: String(program?.completionRate ?? DEFAULT_COMPLETION_RATE),
   };
 }
 
-// 입력칸 글자 → 서버로 보낼 값 (빈 칸은 null, 정원은 숫자)
+// 입력칸 글자 → 서버로 보낼 값 (빈 칸은 null, 정원은 숫자, 수료 기준을 비우면 80)
 function toInput(draft: Draft): ProgramInput {
   const capacity = draft.capacity.trim();
+  const completion = draft.completionRate.trim();
   return {
     name: draft.name.trim(),
     startDate: draft.startDate || null,
     endDate: draft.endDate || null,
     location: draft.location.trim() || null,
     capacity: capacity === "" ? null : Number(capacity),
+    completionRate: completion === "" ? DEFAULT_COMPLETION_RATE : Number(completion),
   };
 }
 
@@ -71,7 +88,7 @@ export default function ProgramForm({ initial, submitLabel, onSubmit, onCancel }
       noValidate
       className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:items-end"
     >
-      {/* 1줄: 이름·장소 / 2줄: 시작일·종료일·정원·버튼 */}
+      {/* 1줄: 이름·장소 / 2줄: 시작일·종료일·정원·수료 기준 / 3줄: 버튼 */}
       <div className={`${field} col-span-2`}>
         <label htmlFor={`${id}-name`}>프로그램 이름</label>
         <input
@@ -125,7 +142,19 @@ export default function ProgramForm({ initial, submitLabel, onSubmit, onCancel }
           className={box}
         />
       </div>
-      <div className="col-span-2 flex gap-2 sm:col-span-1">
+      <div className={field}>
+        <label htmlFor={`${id}-completion`}>수료 기준(%)</label>
+        <input
+          id={`${id}-completion`}
+          type="number"
+          min={COMPLETION_MIN}
+          max={COMPLETION_MAX}
+          value={draft.completionRate}
+          onChange={(e) => set("completionRate", e.target.value)}
+          className={box}
+        />
+      </div>
+      <div className="col-span-2 flex gap-2 sm:col-span-4 sm:justify-end">
         <button
           type="submit"
           disabled={saving}

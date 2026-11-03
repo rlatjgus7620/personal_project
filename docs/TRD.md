@@ -1,4 +1,4 @@
-# TRD — 기술 요구사항
+# TRD — 기술 요구사항 (에듀체크)
 
 > 이 문서는 "어떤 기술로, 어떤 구조로 만드는가"에 답합니다. 근거 문서: PRD.md, CLAUDE.md
 
@@ -65,6 +65,9 @@ personal_project/
 │  │  ├─ programs.ts            # 프로그램 이름 찾기, 신청자 수·마감 계산 (v1.2)
 │  │  ├─ attendance.ts          # 회차 정렬, 출석 횟수·참석 여부 계산 (v1.3)
 │  │  ├─ authStorage.ts         # 로그인 토큰을 sessionStorage에 저장·읽기·지우기 (v2.0)
+│  │  ├─ attendanceSheet.ts     # 회차별 출석표 만들기, CSV·인쇄용 HTML (v2.2)
+│  │  ├─ download.ts            # 브라우저에서 파일 내려받기 (명단·출석표 CSV)
+│  │  ├─ useSlowNotice.ts       # 3초 넘게 걸리면 "서버 깨우는 중" 안내 (v2.0.1)
 │  │  └─ report.ts              # CSV 만들기, 프로그램별 요약 계산
 │  ├─ types/applicant.ts        # 공유 타입 (신청자, 프로그램, 회차, 출석)
 │  └─ test-utils/               # 테스트용 가짜 데이터 (makeApplicant, makeProgram, makeSession)
@@ -74,7 +77,7 @@ personal_project/
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
-   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석)
+   ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석, 0004 수료 기준)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
    │  ├─ routers/applicants.py  # /api/applicants 주소별 처리 (GET·POST·PATCH·DELETE)
@@ -83,6 +86,7 @@ personal_project/
    │  ├─ routers/auth.py        # 로그인 주소 (v2.0)
    │  ├─ auth.py                # require_admin: 토큰이 없으면 401 (v2.0)
    │  ├─ security.py            # 토큰 만들기·검사, 로그인 시도 제한 (FastAPI 없이 순수 함수) (v2.0)
+   │  ├─ seed.py                # 시연용 가짜 데이터 넣기: uv run python -m app.seed (v2.2)
    │  ├─ schemas.py             # 요청·응답 검사 (Pydantic)
    │  ├─ repository.py          # 저장소 약속(Protocol) + 메모리 저장소
    │  ├─ sql_repository.py      # DB 저장소
@@ -128,6 +132,8 @@ v1.2부터 8번 단계에서 **프로그램이 있는지, 정원이 찼는지**�
 
 - 토큰을 DB에 저장하지 않는다. 서명만 맞으면 통과하므로 서버를 여러 대 켜도 같은 `AUTH_SECRET`이면 된다.
 - 비밀번호를 1분 안에 5번 틀리면 1분 동안 로그인을 막는다(`LoginLimiter`, 서버 메모리). 담당자 1명용이라 IP별로 나누지 않는다.
+  - **알고 있는 한계**: 누군가 일부러 계속 틀리면 관리자도 1분씩 로그인하지 못한다. 서버를 다시 켜면 횟수가 초기화된다. 담당자 1명용 앱에서는 받아들일 만한 수준으로 판단했다.
+- 무료 배포 서버(Render)는 오래 쉬면 잠들었다가 다시 켜진다. `AUTH_SECRET`이 비어 있으면 그때마다 토큰 서명 키가 바뀌어 로그인이 풀리므로, 배포 때는 꼭 넣는다.
 - 비밀번호·토큰은 코드, 문서, 로그(print)에 남기지 않는다.
 
 ## 4. 저장소(Repository) 분리

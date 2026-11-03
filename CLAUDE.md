@@ -1,4 +1,4 @@
-# CLAUDE.md - 교육 프로그램 신청·참석 관리 앱
+# CLAUDE.md - 에듀체크 (교육 프로그램 신청·참석 관리 앱)
 
 ## 프로젝트 개요
 교육기관 운영 담당자가 프로그램 신청자 명단을 관리하는 웹 앱 (개인 학습 프로젝트)
@@ -54,3 +54,5 @@
 - 백엔드 테스트: cd backend && uv run pytest
 - DB 저장소 테스트: cd backend && uv run pytest -m db
 - DB 테이블 만들기/갱신: cd backend && uv run alembic upgrade head
+- 시연용 가짜 데이터: cd backend && uv run python -m app.seed (빈 DB에서만 동작)
+- Windows에서는 uv run python -m <도구> 형식으로 실행 (앱 제어 정책 때문)

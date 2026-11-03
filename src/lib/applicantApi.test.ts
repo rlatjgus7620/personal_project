@@ -7,6 +7,7 @@ import {
   deleteApplicant,
   deleteProgram,
   deleteSession,
+  updateSession,
   fetchApplicants,
   fetchAttendance,
   fetchPrograms,
@@ -80,7 +81,14 @@ test.each([400, 404, 409])("CLIENT-05 서버가 %i을 주면 error.message로 Er
 });
 
 test("CLIENT-06 프로그램 API는 /api/programs 주소와 메서드를 쓴다", async () => {
-  const input = { name: "모의면접", startDate: "2026-11-10", endDate: null, location: "3층", capacity: 10 };
+  const input = {
+    name: "모의면접",
+    startDate: "2026-11-10",
+    endDate: null,
+    location: "3층",
+    capacity: 10,
+    completionRate: 80,
+  };
   let fetchMock = mockFetch(200, [makeProgram()]);
   await fetchPrograms();
   expect(fetchMock).toHaveBeenCalledWith(`${API}/api/programs`, undefined);
@@ -118,6 +126,14 @@ test("CLIENT-07 회차·출석 API는 주소와 메서드를 지킨다 (체크�
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
+  });
+
+  fetchMock = mockFetch(200, {});
+  await updateSession(7, { sessionDate: "2026-11-11", note: null });
+  expect(fetchMock).toHaveBeenCalledWith(`${API}/api/sessions/7`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionDate: "2026-11-11", note: null }),
   });
 
   fetchMock = mockFetch(204);

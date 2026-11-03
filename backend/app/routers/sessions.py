@@ -2,6 +2,7 @@
 
 - GET    /api/sessions                                  전체 회차
 - POST   /api/programs/{program_id}/sessions            회차 추가
+- PATCH  /api/sessions/{session_id}                     회차 날짜·메모 수정 (v2.1)
 - DELETE /api/sessions/{session_id}                     회차 삭제
 - GET    /api/attendance                                전체 출석 기록
 - PUT    /api/sessions/{session_id}/attendees/{applicant_id}   출석 체크
@@ -13,7 +14,7 @@ from fastapi import APIRouter, Depends, Response, status
 from app.deps import get_repo
 from app.errors import ProgramNotFoundError, SessionNotFoundError
 from app.repository import ApplicantRepository
-from app.schemas import AttendanceOut, SessionCreate, SessionOut
+from app.schemas import AttendanceOut, SessionCreate, SessionOut, SessionUpdate
 
 router = APIRouter(prefix="/api", tags=["sessions"])
 
@@ -36,6 +37,17 @@ def create_session(
     session = repo.create_session(program_id, data)
     if session is None:
         raise ProgramNotFoundError()
+    return session
+
+
+@router.patch("/sessions/{session_id}", response_model=SessionOut)
+def update_session(
+    session_id: int, data: SessionUpdate, repo: ApplicantRepository = Depends(get_repo)
+) -> SessionOut:
+    """회차 날짜·메모 수정 (출석 기록은 그대로)"""
+    session = repo.update_session(session_id, data)
+    if session is None:
+        raise SessionNotFoundError()
     return session
 
 

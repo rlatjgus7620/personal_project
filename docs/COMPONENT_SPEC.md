@@ -1,4 +1,4 @@
-# COMPONENT_SPEC — 화면 부품 명세
+# COMPONENT_SPEC — 화면 부품 명세 (에듀체크)
 
 > 이 문서는 "화면이 어떤 부품으로 이루어지는가"에 답합니다. 근거 문서: PRD.md, API_SPEC.md
 
@@ -77,7 +77,8 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 
 - 제목 `관리자 로그인`, 비밀번호 입력(`type="password"`, 접근 이름 "관리자 비밀번호", `autoComplete="current-password"`), **로그인** 버튼
 - 비밀번호가 비면 보내지 않고 "비밀번호를 입력해 주세요." (`role="alert"`)
-- 보내는 동안 버튼을 잠근다. `onLogin`이 문구를 돌려주면 `role="alert"`로 보여주고 입력칸을 비운다.
+- 보내는 동안 버튼을 잠근다. 3초가 넘으면 "서버를 깨우는 중일 수 있어요…" 안내를 `role="status"`로 보여준다 (v2.0.1, `useSlowNotice`).
+- `onLogin`이 문구를 돌려주면 `role="alert"`로 보여주고 입력칸을 비운다.
 - `notice`는 `role="status"`로 보여준다.
 
 ### AdminDashboard (v2.0)
@@ -87,7 +88,9 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 | `onUnauthorized` | `(message: string) => void` | 서버가 401을 주면 호출 (Home이 로그인 화면으로 바꿈) |
 
 - v1.3까지 `app/page.tsx`가 하던 일(데이터 불러오기·저장, 부품 배치)을 그대로 옮긴다.
-- 머리글 오른쪽에 요약과 **로그아웃** 버튼.
+- 머리글: 제목 `에듀체크`(v2.0.1), 오른쪽에 요약과 **로그아웃** 버튼.
+- 처음 불러오기가 3초 넘게 걸리면 "불러오는 중..." 아래에 서버 깨우는 중 안내 (v2.0.1).
+- 회차 수정(`onUpdateSession`)은 서버 답을 받은 뒤 화면의 회차 목록을 바꾼다 (v2.1).
 - 어떤 API든 `ApiError`의 `status`가 401이면 빨간 알림 대신 `onUnauthorized(message)`.
 
 ### ApplicantSummary
@@ -138,6 +141,8 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - 목록은 `ul`/`li`, key는 `applicant.id`
 
 ### ApplicantItem
+- v2.0.1: 회차 출석 기록이 1번이라도 있으면(`sessionStat.attended > 0`) 수정 칸의 프로그램 선택을 잠그고 "출석 기록이 있어 프로그램은 바꿀 수 없습니다." 안내.
+- v2.1: 회차 프로그램에서 수료 기준(그 프로그램의 `completionRate`) 이상이면 이름 옆에 **수료** 표시 (`isCompleted()`).
 | Props | 타입 | 설명 |
 |---|---|---|
 | `applicant` | `Applicant` | |
@@ -213,6 +218,7 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 | `applicants` | `Applicant[]` (필터 전 전체 명단) |
 
 - 프로그램마다 카드 하나 (서버에서 받은 순서). 신청자가 0명인 프로그램도 보여준다.
+- v2.1: 회차가 있는 프로그램 카드에 `수료 {N}명 (기준 {P}%)`
 - v1.3: `sessions`, `attendance` Props(선택)를 받는다. 회차가 있는 프로그램 카드는 `신청 {N}명 · 회차 {K}개`(정원이 있으면 `신청 {N}/{정원}명 · 회차 {K}개`), `출석률 {P}%` (= 출석 기록 ÷ (신청자 × 회차 수)). 신청 0명이면 `출석률 -`
 - 카드 내용(회차 없는 프로그램): 프로그램 이름, 정원이 있으면 `신청 {N}/{정원}명 · 참석 {M}명`, 없으면 `신청 {N}명 · 참석 {M}명`, `참석률 {P}%` (신청 0명이면 `참석률 -`)
 - 마감이면 이름 옆에 **마감** 표시 (v1.2)
@@ -220,6 +226,7 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - 참석률은 소수점 없이 반올림. 계산은 `summarizeByProgram()` 순수 함수가 한다.
 
 ### ProgramManager (v1.2)
+- v2.1: 프로그램 한 줄 끝에 `· 수료 기준 {N}%`
 | Props | 타입 | 설명 |
 |---|---|---|
 | `programs` | `Program[]` | 신청자 수가 계산된 목록 |
@@ -237,6 +244,7 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - 프로그램이 없으면 "등록된 프로그램이 없습니다. 아래에서 추가해 주세요."
 
 ### ProgramForm (v1.2)
+- v2.1: 입력칸 **수료 기준(%)** (`type="number"`, 1~100, 기본 80, 비우면 80으로 보냄). 범위를 벗어나면 "수료 기준은 1~100% 사이로 입력해 주세요."
 | Props | 타입 | 설명 |
 |---|---|---|
 | `initial` | `Program` (선택) | 수정할 때 기존 값 |
@@ -256,6 +264,10 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - `onSubmit`이 `true`면: 추가 폼은 입력칸을 비우고, 수정 폼은 그대로 둔다(부모가 닫음). `false`면 입력값을 유지한다.
 
 ### AttendanceBook (v1.3)
+- v2.0.1: 회차가 없는데 참석 체크된 신청자가 있으면 회차 추가 전에 안내 (DATA_MODEL "참석과 출석" 참고)
+- v2.1: `onUpdateSession: (sessionId, input: SessionInput) => Promise<boolean>`. 고른 회차에 **{N}회차 수정** 버튼 → 날짜("회차 날짜 수정")·메모("회차 메모 수정") 입력 + **저장**/**취소**. 날짜가 비면 "회차 날짜를 입력해 주세요." 저장에 성공하면 같은 회차를 계속 보여준다.
+- v2.1: 신청자 줄에 수료 기준 이상이면 **수료** 표시
+- v2.2: 고른 회차 아래에 `출석표 (수료 기준 N%)` + **출석표 CSV**(`출석표_{프로그램}_YYYYMMDD.csv`, 연락처 전체) / **출석표 인쇄**(새 창에 표를 열고 인쇄, 연락처 가림). 팝업이 막히면 "팝업이 막혀 인쇄 창을 열 수 없습니다. 브라우저에서 팝업을 허용해 주세요." 표 만들기는 `lib/attendanceSheet.ts`의 순수 함수.
 | Props | 타입 | 설명 |
 |---|---|---|
 | `programs` | `Program[]` | |
@@ -279,6 +291,7 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - 체크박스를 누르면 `onToggle(회차 id, 신청자 id, 체크 후 상태)`
 
 ### ExportButton (v1.1)
+- v2.1: CSV 열에 `수료` 추가 (`번호, 이름, 연락처, 프로그램, 참석, 수료, 신청일`). 회차 프로그램은 `수료`/`미수료`, 아니면 빈칸.
 | Props | 타입 |
 |---|---|
 | `applicants` | `Applicant[]` (지금 화면에 보이는, 필터된 명단) |

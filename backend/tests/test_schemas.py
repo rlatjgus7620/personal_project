@@ -1,4 +1,4 @@
-"""VAL-01 ~ VAL-09: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
+"""VAL-01 ~ VAL-11: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
 
 from datetime import UTC, date, datetime
 
@@ -12,6 +12,7 @@ from app.schemas import (
     ProgramCreate,
     ProgramUpdate,
     SessionCreate,
+    SessionUpdate,
 )
 
 VALID = {"name": "김테스트", "phone": "010-1234-5678", "program_id": 2}
@@ -100,3 +101,25 @@ def test_val_09_회차_추가_규칙() -> None:
     for bad in bad_inputs:
         with pytest.raises(ValidationError):
             SessionCreate.model_validate(bad)
+
+
+def test_val_10_수료_기준은_비우면_80이고_1부터_100까지() -> None:
+    assert ProgramCreate(name="특강").completion_rate == 80
+    assert ProgramCreate.model_validate({"name": "특강", "completionRate": None}).completion_rate == 80
+    assert ProgramCreate.model_validate({"name": "특강", "completionRate": "70"}).completion_rate == 70
+    assert ProgramUpdate.model_validate({"completionRate": 100}).changes() == {"completion_rate": 100}
+    for bad in [0, 101, True, "많이"]:
+        with pytest.raises(ValidationError):
+            ProgramCreate.model_validate({"name": "특강", "completionRate": bad})
+    with pytest.raises(ValidationError):
+        ProgramUpdate.model_validate({"completionRate": None})  # 수정에서 비울 수 없음
+
+
+def test_val_11_회차_수정은_보낸_항목만_바꾸고_날짜는_비울_수_없다() -> None:
+    assert SessionUpdate.model_validate({"note": None}).changes() == {"note": None}
+    assert SessionUpdate.model_validate({"sessionDate": "2026-11-11"}).changes() == {
+        "session_date": date(2026, 11, 11)
+    }
+    for bad in [{}, {"sessionDate": None}, {"sessionDate": ""}, {"note": "가" * 31}]:
+        with pytest.raises(ValidationError):
+            SessionUpdate.model_validate(bad)

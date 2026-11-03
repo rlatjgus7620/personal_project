@@ -35,6 +35,7 @@ from app.schemas import (
     ProgramUpdate,
     SessionCreate,
     SessionOut,
+    SessionUpdate,
 )
 
 
@@ -55,6 +56,7 @@ class SqlApplicantRepository:
             end_date=row.end_date,
             location=row.location,
             capacity=row.capacity,
+            completion_rate=row.completion_rate,
             applicant_count=self._count(row.id),
         )
 
@@ -161,6 +163,27 @@ class SqlApplicantRepository:
             program_id=program_id, session_date=data.session_date, note=data.note, created_at=now_utc()
         )
         self._session.add(row)
+        self._commit(DuplicateSessionError())
+        self._session.refresh(row)
+        return self._session_out(row)
+
+    def update_session(self, session_id: int, data: SessionUpdate) -> SessionOut | None:
+        row = self._session.get(SessionRow, session_id)
+        if row is None:
+            return None
+        changes = data.changes()
+        new_date = changes.get("session_date", row.session_date)
+        taken = self._session.scalar(
+            select(SessionRow.id).where(
+                SessionRow.program_id == row.program_id,
+                SessionRow.session_date == new_date,
+                SessionRow.id != session_id,
+            )
+        )
+        if taken is not None:
+            raise DuplicateSessionError()
+        for field, value in changes.items():
+            setattr(row, field, value)
         self._commit(DuplicateSessionError())
         self._session.refresh(row)
         return self._session_out(row)

@@ -27,7 +27,9 @@ import {
   setAttendance,
   updateApplicant,
   updateProgram,
+  updateSession,
 } from "../lib/applicantApi";
+import { SLOW_SERVER_MESSAGE, useSlowNotice } from "../lib/useSlowNotice";
 import { applicantSessionStat, hasAttended } from "../lib/attendance";
 import { filterApplicants, isFilterActive } from "../lib/filterApplicants";
 import { withApplicantCounts } from "../lib/programs";
@@ -59,6 +61,7 @@ export default function AdminDashboard({ onLogout, onUnauthorized }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]); // 회차 (v1.3)
   const [attendance, setAttendanceList] = useState<AttendanceRecord[]>([]); // 출석 기록 (v1.3)
   const [loading, setLoading] = useState(true);
+  const slowLoading = useSlowNotice(loading); // 3초 넘게 걸리면 "서버를 깨우는 중" 안내 (v2.0.1)
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ApplicantFilterValue>(INITIAL_FILTER);
   // 서버 처리 중인 신청자 id 모음 (그 줄의 버튼을 잠가서 두 번 눌리지 않게)
@@ -216,6 +219,19 @@ export default function AdminDashboard({ onLogout, onUnauthorized }: Props) {
     }
   }
 
+  // 회차 날짜·메모 수정 (v2.1): 출석 기록은 그대로
+  async function handleUpdateSession(sessionId: number, input: SessionInput): Promise<boolean> {
+    setError(null);
+    try {
+      const updated = await updateSession(sessionId, input);
+      setSessions((list) => list.map((s) => (s.id === sessionId ? updated : s)));
+      return true;
+    } catch (e) {
+      showError(e);
+      return false;
+    }
+  }
+
   async function handleDeleteSession(sessionId: number) {
     setError(null);
     try {
@@ -249,8 +265,8 @@ export default function AdminDashboard({ onLogout, onUnauthorized }: Props) {
     <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-8">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">교육 프로그램 신청·참석 관리</h1>
-          <p className="text-sm text-slate-500">신청자를 등록하고, 행사 당일 참석을 체크하세요.</p>
+          <h1 className="text-2xl font-bold text-slate-900">에듀체크</h1>
+          <p className="text-sm text-slate-500">교육 프로그램 신청·참석 관리 — 신청자를 등록하고, 당일 참석을 체크하세요.</p>
         </div>
         <div className="flex items-center gap-3">
           <ApplicantSummary applicants={applicants} isAttended={isAttended} />
@@ -287,6 +303,7 @@ export default function AdminDashboard({ onLogout, onUnauthorized }: Props) {
         sessions={sessions}
         attendance={attendance}
         onAddSession={handleAddSession}
+        onUpdateSession={handleUpdateSession}
         onDeleteSession={handleDeleteSession}
         onToggle={handleToggleAttendance}
       />
@@ -300,7 +317,14 @@ export default function AdminDashboard({ onLogout, onUnauthorized }: Props) {
           <ExportButton applicants={visible} programs={programs} sessions={sessions} attendance={attendance} />
         </div>
         {loading ? (
-          <p className="py-10 text-center text-slate-500">불러오는 중...</p>
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-slate-500">
+            <p>불러오는 중...</p>
+            {slowLoading && (
+              <p role="status" className="text-sm">
+                {SLOW_SERVER_MESSAGE}
+              </p>
+            )}
+          </div>
         ) : (
           <ApplicantList
             applicants={visible}

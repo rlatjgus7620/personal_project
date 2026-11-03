@@ -10,6 +10,9 @@ export const LOCATION_MAX_LENGTH = 50;
 export const CAPACITY_MIN = 1;
 export const CAPACITY_MAX = 999;
 export const NOTE_MAX_LENGTH = 30; // 회차 메모 (v1.3)
+export const COMPLETION_MIN = 1; // 수료 기준(%) (v2.1)
+export const COMPLETION_MAX = 100;
+export const DEFAULT_COMPLETION_RATE = 80;
 
 export const MESSAGES = {
   nameRequired: "이름을 입력해 주세요.",
@@ -23,6 +26,7 @@ export const MESSAGES = {
   periodOrder: "종료일은 시작일보다 빠를 수 없습니다.",
   sessionDateRequired: "회차 날짜를 입력해 주세요.",
   passwordRequired: "비밀번호를 입력해 주세요.",
+  completionRange: `수료 기준은 ${COMPLETION_MIN}~${COMPLETION_MAX}% 사이로 입력해 주세요.`,
 } as const;
 
 // 선택칸 값("" 또는 "3")을 프로그램 번호로. 고르지 않았으면 null
@@ -45,7 +49,7 @@ export function validateApplicant(input: {
   return null;
 }
 
-// 프로그램 입력 검사 (v1.2). 순서: 이름 → 장소 → 정원 → 기간
+// 프로그램 입력 검사 (v1.2). 순서: 이름 → 장소 → 정원 → 수료 기준(v2.1) → 기간
 export function validateProgram(input: ProgramInput): string | null {
   const name = input.name.trim();
   if (name === "") return MESSAGES.programNameRequired;
@@ -56,6 +60,13 @@ export function validateProgram(input: ProgramInput): string | null {
     (!Number.isInteger(input.capacity) || input.capacity < CAPACITY_MIN || input.capacity > CAPACITY_MAX)
   ) {
     return MESSAGES.capacityRange;
+  }
+  if (
+    !Number.isInteger(input.completionRate) ||
+    input.completionRate < COMPLETION_MIN ||
+    input.completionRate > COMPLETION_MAX
+  ) {
+    return MESSAGES.completionRange;
   }
   // "2026-11-10" 형식은 글자 순서가 날짜 순서와 같아서 문자열로 비교해도 됨
   if (input.startDate && input.endDate && input.endDate < input.startDate) return MESSAGES.periodOrder;
