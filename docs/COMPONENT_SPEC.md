@@ -18,7 +18,7 @@ Home (app/page.tsx)                  (v2.0) : 로그인 문지기 — 토큰이 
    │  │  └─ AttendanceSheetButtons  (v2.7) : 출석표 CSV·인쇄 버튼 (원래 AttendanceBook 안)
    │  ├─ ProgramStats                (v2.6) : 통계 — 프로그램별 요약 표, 회차별 출석률 막대 (접었다 펴는 칸)
    │  ├─ ApplicantForm                      : 이름 + 연락처 + 프로그램 + 등록 버튼
-   │  ├─ BulkImport                  (v2.5) : 명단 한꺼번에 등록 — 붙여넣기, 줄마다 미리 검사 (접었다 펴는 칸)
+   │  ├─ BulkImport                  (v2.5) : 명단 한꺼번에 등록 — 붙여넣기·파일 올리기(v2.8), 줄마다 미리 검사 (접었다 펴는 칸)
    │  ├─ ApplicantFilter             (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름·연락처 뒷자리 검색(v2.4)
    │  ├─ ExportButton                (v1.1) : 지금 보이는 명단을 CSV로 저장
    │  └─ ApplicantList                      : 명단 (ul)
@@ -339,12 +339,17 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 |---|---|
 | `programs`, `applicants` | 프로그램 목록, 이미 신청한 연락처 확인용 명단 |
 | `onBulkAdd` | `(programId, items: BulkRow[]) => Promise<BulkResult \| null>` |
+| `readFile?` (v2.8) | `(file) => Promise<{ text, count }>` 파일 읽기. 기본 `readRosterFile`, 테스트에서 가짜로 바꿈 |
 
 - `<details>` 제목 `명단 한꺼번에 등록`. 선택 "일괄 등록 프로그램", 입력칸 "붙여 넣을 명단"(여러 줄)
 - 붙여 넣는 즉시 `parseRoster()`로 줄마다 검사: 탭·쉼표·띄어쓰기 구분, 머리글 줄 건너뜀, 하이픈 자동, 이름·형식·이미 신청함·붙여넣기 안 중복
 - `등록할 수 있는 사람 N명 · 문제 있는 줄 M개`, 문제 줄 목록 `{줄}번째 줄 ({이름}): {이유}`
 - **{N}명 등록** 버튼: 프로그램 미선택·0명·200명 초과·보내는 중이면 비활성화. 문제없는 줄만 보냄
 - 결과(`role="status"`): "N명을 등록했습니다." + 실패 목록. 모두 성공하면 입력칸을 비움
+- 파일 올리기(v2.8): 버튼 모양 라벨 **엑셀·CSV 파일 선택**(파일 칸 접근 이름 "명단 파일 선택", `.xlsx,.csv`). 고르면 `readRosterFile()`로 읽어 입력칸을 **바꿔 채움**
+  - 성공: `{파일 이름}에서 {N}줄을 불러왔습니다. 아래에서 확인한 뒤 등록하세요.` (초록, `aria-live="polite"`)
+  - 실패: 이유 문구(빨강) — 형식 아님 / 옛 엑셀·암호 / 5MB 초과 / 깨진 파일 / 명단 없음. 입력칸은 그대로
+  - 읽는 중에는 라벨이 "파일 읽는 중..."이고 파일 칸 비활성화. 입력칸을 고치면 안내가 사라짐. 같은 파일을 다시 골라도 다시 읽음
 
 ### ProgramStats (v2.6)
 - `<details>` 제목 `통계`. Props: `programs`, `applicants`, `sessions`, `attendance`

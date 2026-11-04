@@ -1,30 +1,58 @@
 "use client";
 // 명단 한꺼번에 등록 (v2.5): 엑셀·구글폼에서 "이름 | 연락처" 두 칸을 복사해 붙여 넣으면
 // 줄마다 미리 검사해서 보여주고, 문제없는 줄만 서버로 보냅니다.
+// v2.8: 엑셀(.xlsx)·CSV 파일을 골라도 됩니다. 파일 내용은 붙여넣기 칸에 채워 같은 방법으로 검사합니다.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ChangeEvent } from "react";
 import type { Applicant, BulkResult, BulkRow, Program } from "../types/applicant";
 import { BULK_MAX_ROWS, parseRoster } from "../lib/bulkImport";
 import { programOptionLabel } from "../lib/programs";
+import { FILE_MESSAGES, RosterFileError, readRosterFile, type RosterFile } from "../lib/rosterFile";
 import { MESSAGES, toProgramId } from "../lib/validation";
 
 type Props = {
   programs: Program[];
   applicants: Applicant[]; // 이미 신청한 연락처를 미리 걸러내려고
   onBulkAdd: (programId: number, items: BulkRow[]) => Promise<BulkResult | null>;
+  // 파일 읽기 (테스트에서 가짜로 바꾸려고. 기본: readRosterFile)
+  readFile?: (file: RosterFile) => Promise<{ text: string; count: number }>;
 };
 
-export default function BulkImport({ programs, applicants, onBulkAdd }: Props) {
+type FileNotice = { kind: "ok" | "error"; message: string };
+
+export default function BulkImport({ programs, applicants, onBulkAdd, readFile = readRosterFile }: Props) {
   const [program, setProgram] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<BulkResult | null>(null);
+  const [reading, setReading] = useState(false);
+  const [fileNotice, setFileNotice] = useState<FileNotice | null>(null);
 
   const programId = toProgramId(program);
   const rows = useMemo(() => parseRoster(text, applicants, programId), [text, applicants, programId]);
   const valid = rows.filter((r) => r.error === null);
   const problems = rows.filter((r) => r.error !== null);
   const tooMany = valid.length > BULK_MAX_ROWS;
+
+  // 파일을 고르면 내용을 읽어 붙여넣기 칸에 채움
+  async function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    setReading(true);
+    setResult(null);
+    setFileNotice(null);
+    try {
+      const { text: loaded, count } = await readFile(file);
+      setText(loaded);
+      setFileNotice({ kind: "ok", message: `${file.name}에서 ${count}줄을 불러왔습니다. 아래에서 확인한 뒤 등록하세요.` });
+    } catch (e) {
+      setFileNotice({ kind: "error", message: e instanceof RosterFileError ? e.message : FILE_MESSAGES.broken });
+    } finally {
+      setReading(false);
+      input.value = ""; // 같은 파일을 다시 골라도 읽도록
+    }
+  }
 
   async function handleSubmit() {
     if (programId === null || valid.length === 0 || tooMany) return;
@@ -46,8 +74,8 @@ export default function BulkImport({ programs, applicants, onBulkAdd }: Props) {
       </summary>
       <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3">
         <p className="text-sm text-slate-500">
-          엑셀에서 이름·연락처 두 칸을 복사해 붙여 넣으세요. 한 줄에 한 명이고, 쉼표나 띄어쓰기로 나눠도 됩니다. 한 번에{" "}
-          {BULK_MAX_ROWS}명까지 등록할 수 있습니다.
+          엑셀(.xlsx)·CSV 파일을 고르거나, 엑셀에서 이름·연락처 두 칸을 복사해 붙여 넣으세요. 한 줄에 한 명이고,
+          쉼표나 띄어쓰기로 나눠도 됩니다. 한 번에 {BULK_MAX_ROWS}명까지 등록할 수 있습니다.
         </p>
         <select
           aria-label="일괄 등록 프로그램"
@@ -65,6 +93,28 @@ export default function BulkImport({ programs, applicants, onBulkAdd }: Props) {
             </option>
           ))}
         </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 focus-within:ring-2 focus-within:ring-blue-500 hover:bg-slate-50">
+            {reading ? "파일 읽는 중..." : "엑셀·CSV 파일 선택"}
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              aria-label="명단 파일 선택"
+              disabled={reading}
+              onChange={handleFile}
+              className="sr-only"
+            />
+          </label>
+          <span className="text-sm text-slate-500">머리글에 &quot;이름&quot;·&quot;연락처&quot;가 있으면 그 두 칸만 읽습니다.</span>
+        </div>
+        {fileNotice && (
+          <p
+            aria-live="polite"
+            className={`text-sm ${fileNotice.kind === "ok" ? "text-emerald-700" : "text-red-700"}`}
+          >
+            {fileNotice.message}
+          </p>
+        )}
         <textarea
           aria-label="붙여 넣을 명단"
           rows={6}
@@ -73,6 +123,7 @@ export default function BulkImport({ programs, applicants, onBulkAdd }: Props) {
           onChange={(e) => {
             setText(e.target.value);
             setResult(null);
+            setFileNotice(null);
           }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm"
         />

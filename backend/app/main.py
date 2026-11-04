@@ -20,7 +20,7 @@ from app.messages import validation_message
 from app.middleware import CatchUnexpectedErrors
 from app.routers import applicants, auth, programs, sessions
 
-app = FastAPI(title="에듀체크 API (교육 프로그램 신청·참석 관리)", version="2.7.0")
+app = FastAPI(title="에듀체크 API (교육 프로그램 신청·참석 관리)", version="2.8.0")
 
 # 미들웨어는 나중에 추가한 것이 바깥쪽입니다.
 # 에러 잡기를 먼저(안쪽에) 넣어야 그 500 응답에도 CORS 허락 표시가 붙습니다.

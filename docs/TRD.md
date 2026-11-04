@@ -64,7 +64,7 @@ personal_project/
 │  │  ├─ SessionEditForm.tsx    # 회차 날짜·메모 수정 칸 (v2.1, v2.7에 분리)
 │  │  ├─ AttendanceSheetButtons.tsx # 출석표 CSV·인쇄 버튼 (v2.2, v2.7에 분리)
 │  │  ├─ ProgramStats.tsx       # 통계: 프로그램별 요약 표, 회차별 출석률 막대 (v2.6)
-│  │  ├─ BulkImport.tsx         # 명단 한꺼번에 등록 (엑셀 붙여넣기) (v2.5)
+│  │  ├─ BulkImport.tsx         # 명단 한꺼번에 등록 (엑셀 붙여넣기 v2.5, 파일 올리기 v2.8)
 │  │  ├─ CheckInMode.tsx        # 현장 체크인: 태블릿용 큰 화면 (v2.4)
 │  │  ├─ AdminDashboard.tsx     # 로그인 뒤의 화면 배치 (관리·현장 체크인 모드) (v2.0)
 │  │  ├─ LoginForm.tsx          # 관리자 로그인 화면 (v2.0)
@@ -73,6 +73,8 @@ personal_project/
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
 │  │  ├─ useEduData.ts          # 관리 화면의 데이터 불러오기·저장 훅 (v2.7)
 │  │  ├─ bulkImport.ts          # 붙여 넣은 명단 해석·검사 (v2.5)
+│  │  ├─ rosterFile.ts          # 엑셀(.xlsx)·CSV 파일에서 이름·연락처 읽기 (v2.8)
+│  │  ├─ __fixtures__/          # 파일 읽기 테스트용 가짜 명단 파일 (v2.8)
 │  │  ├─ stats.ts               # 회차별 출석률 계산 (v2.6)
 │  │  ├─ validation.ts          # 입력값 검사 (서버와 같은 규칙·문구)
 │  │  ├─ filterApplicants.ts    # 필터 계산
@@ -168,6 +170,15 @@ v1.2부터 8번 단계에서 **프로그램이 있는지, 정원이 찼는지**�
 - 관리 화면이 커져서(343줄) 데이터 불러오기·저장 코드를 `src/lib/useEduData.ts` 훅으로 옮겼다. `AdminDashboard.tsx`는 화면 배치만 한다.
 - 회차 출석부(`AttendanceBook.tsx`, 410줄)도 회차 수정 칸(`SessionEditForm.tsx`)과 출석표 버튼(`AttendanceSheetButtons.tsx`)을 따로 떼어 냈다. 화면과 동작은 그대로다.
 - 모든 저장 함수는 성공하면 `true`를 돌려준다. 현장 체크인처럼 "성공했을 때만 안내 문구"가 필요한 화면이 이 값을 쓴다.
+
+## 3-4. 엑셀 파일 읽기 (v2.8)
+- .xlsx 파일은 zip 압축 파일이고, 안에 시트 내용이 XML 글(`xl/worksheets/sheet1.xml`, 글자 모음 `xl/sharedStrings.xml`)로 들어 있다.
+- 라이브러리를 쓰지 않고 브라우저 기본 기능으로 읽는다: zip 목차 읽기 → `DecompressionStream("deflate-raw")`로 압축 풀기 → 정규식으로 칸 꺼내기 (`src/lib/rosterFile.ts`)
+  - 이유: 가장 많이 쓰는 SheetJS는 npm에 올라간 판이 오래돼 보안 문제가 알려져 있고, 이 앱은 "이름·연락처 두 칸"만 읽으면 되기 때문
+  - 수식 결과·날짜 서식·병합 칸은 해석하지 않는다(값을 글자 그대로 읽음)
+- CSV는 UTF-8로 읽어 보고, 깨지면 한국어 엑셀의 기본값인 CP949(EUC-KR)로 다시 읽는다
+- 읽은 결과는 "이름<탭>연락처" 줄로 붙여넣기 칸에 채운다 → 검사·등록은 붙여넣기(v2.5)와 같은 코드(`parseRoster`, `POST /api/applicants/bulk`)를 쓴다. 서버는 바뀌지 않음
+- 파일은 서버로 보내지 않고 브라우저 안에서만 읽는다
 
 ## 4. 저장소(Repository) 분리
 - 라우터는 `Depends(get_repo)`로 받은 저장소만 쓴다. DB를 직접 모른다.
