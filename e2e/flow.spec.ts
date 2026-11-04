@@ -9,7 +9,8 @@ test("E2E-01 로그인부터 현장 체크인, 로그아웃까지", async ({ pag
   await expect(page.getByRole("heading", { name: "관리자 로그인" })).toBeVisible();
   await page.getByLabel("관리자 비밀번호").fill("wrong-password");
   await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page.getByRole("alert")).toHaveText("비밀번호가 맞지 않습니다.");
+  // Next.js가 페이지마다 화면 낭독기용 role="alert" 요소를 하나 더 넣으므로 본문(main) 안에서만 찾음
+  await expect(page.getByRole("main").getByRole("alert")).toHaveText("비밀번호가 맞지 않습니다.");
   await page.getByLabel("관리자 비밀번호").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "로그인" }).click();
   await expect(page.getByRole("heading", { name: "에듀체크", level: 1 })).toBeVisible();
@@ -56,7 +57,7 @@ test("E2E-01 로그인부터 현장 체크인, 로그아웃까지", async ({ pag
   await page.getByLabel("체크인 프로그램").selectOption({ label: "모의면접" });
   await page.getByLabel("이름 또는 연락처 뒷자리").fill("0003");
   await page.getByRole("button", { name: "박데모 출석" }).click();
-  await expect(page.getByRole("status")).toHaveText("박데모 님 출석 처리했습니다");
+  await expect(page.getByRole("main").getByRole("status")).toHaveText("박데모 님 출석 처리했습니다");
   await page.getByRole("button", { name: "관리 화면으로" }).click();
 
   // 7) 로그아웃하면 로그인 화면, 새로고침해도 로그인 화면
