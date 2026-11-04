@@ -7,7 +7,11 @@
 교육기관 운영 담당자가 프로그램 신청자를 등록하고, 행사 당일 참석을 체크하고, 프로그램별로 골라 보는 웹 앱입니다.
 현재 버전: **v2.7** (현장 체크인, 명단 일괄 등록, 통계, 자동 테스트까지)
 
-![실행 화면](docs/images/screenshot.png)
+![관리 화면: 프로그램별 요약, 회차 출석부, 통계](docs/images/screenshot.png)
+
+행사 당일에는 **현장 체크인** 화면에서 이름이나 연락처 뒷자리로 찾아 버튼 한 번으로 출석 처리합니다.
+
+![현장 체크인 화면](docs/images/checkin.png)
 
 > 화면의 이름과 연락처는 모두 가짜 데이터입니다.
 
@@ -62,7 +66,7 @@ personal_project/
 │  ├─ API_SPEC.md               # API 주소, 요청·응답, 에러 형식
 │  ├─ COMPONENT_SPEC.md         # 화면 부품, Props, 동작과 문구
 │  ├─ TEST_CASES.md             # 테스트 ID와 기대 결과 ("완성"의 기준)
-│  └─ images/screenshot.png     # README용 실행 화면
+│  └─ images/                   # README용 화면 캡처 (screenshot.png 관리 화면, checkin.png 현장 체크인)
 │
 ├─ app/                         # Next.js 페이지
 │  ├─ layout.tsx                # 모든 페이지를 감싸는 틀

@@ -18,8 +18,8 @@ jobs:
       # 테스트는 가짜 비밀번호를 conftest.py에서 넣으므로 실제 비밀번호가 필요 없음
       DATABASE_URL_TEST: sqlite:///./test.db
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
       - name: 패키지 설치
         run: uv sync
       - name: 코드 검사 (ruff)
@@ -37,8 +37,8 @@ jobs:
     name: 화면 (jest, eslint, build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -55,9 +55,9 @@ jobs:
     name: 화면 흐름 (Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -71,7 +71,7 @@ jobs:
         run: npx playwright test
       - name: 실패하면 결과 보고서 남기기
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: playwright-report
