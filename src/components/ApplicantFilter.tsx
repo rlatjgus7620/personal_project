@@ -53,8 +53,8 @@ export default function ApplicantFilter({ value, programs, onChange }: Props) {
       </select>
       <input
         type="search"
-        aria-label="이름 검색"
-        placeholder="이름으로 검색"
+        aria-label="이름 또는 연락처 검색"
+        placeholder="이름 또는 연락처 뒷자리"
         value={value.keyword}
         onChange={(e) => onChange({ ...value, keyword: e.target.value })}
         className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm sm:ml-auto"

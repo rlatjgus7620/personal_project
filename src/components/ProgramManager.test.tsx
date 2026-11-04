@@ -114,3 +114,34 @@ describe("ProgramManager (v1.2)", () => {
     expect(onDelete).toHaveBeenCalledWith(2);
   });
 });
+
+describe("프로그램 복사 (v2.5)", () => {
+  test("UI-56 복사를 누르면 새 프로그램 칸에 이름 (복사)와 같은 설정이 채워지고, 추가하면 비워진다", async () => {
+    const onAdd = jest.fn().mockResolvedValue(true);
+    const user = userEvent.setup();
+    render(
+      <ProgramManager
+        programs={[makeProgram({ id: 1, name: "모의면접", location: "3층", capacity: 10, completionRate: 60 })]}
+        onAdd={onAdd}
+        onUpdate={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+    await user.click(screen.getByText("프로그램 관리 (1개)"));
+    await user.click(screen.getByRole("button", { name: "모의면접 복사" }));
+    expect(screen.getByRole("status")).toHaveTextContent("모의면접의 내용을 채웠습니다");
+    expect(screen.getByLabelText("프로그램 이름")).toHaveValue("모의면접 (복사)");
+    expect(screen.getByLabelText("장소")).toHaveValue("3층");
+    await user.click(screen.getByRole("button", { name: "프로그램 추가" }));
+    expect(onAdd).toHaveBeenCalledWith({
+      name: "모의면접 (복사)",
+      startDate: null,
+      endDate: null,
+      location: "3층",
+      capacity: 10,
+      completionRate: 60,
+    });
+    expect(screen.getByLabelText("프로그램 이름")).toHaveValue("");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

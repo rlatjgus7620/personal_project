@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Program, ProgramInput } from "../types/applicant";
 import { formatPeriod } from "../lib/format";
+import { copyOf } from "../lib/programs";
 import ProgramForm from "./ProgramForm";
 
 type Props = {
@@ -21,6 +22,21 @@ function capacityText(p: Program): string {
 export default function ProgramManager({ programs, onAdd, onUpdate, onDelete }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  // 복사 (v2.5): 고른 프로그램 값을 새 프로그램 칸에 채움. key를 바꿔서 폼을 새로 그림
+  const [copySource, setCopySource] = useState<Program | null>(null);
+  const [copyKey, setCopyKey] = useState(0);
+
+  function startCopy(program: Program) {
+    setCopySource(program);
+    setCopyKey((k) => k + 1);
+    setConfirmingId(null);
+  }
+
+  async function handleAdd(input: ProgramInput): Promise<boolean> {
+    const ok = await onAdd(input);
+    if (ok) setCopySource(null);
+    return ok;
+  }
 
   async function handleUpdate(id: number, input: ProgramInput): Promise<boolean> {
     const ok = await onUpdate(id, input);
@@ -82,6 +98,14 @@ export default function ProgramManager({ programs, onAdd, onUpdate, onDelete }: 
                     <div className="flex gap-2">
                       <button
                         type="button"
+                        aria-label={`${p.name} 복사`}
+                        onClick={() => startCopy(p)}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm"
+                      >
+                        복사
+                      </button>
+                      <button
+                        type="button"
                         aria-label={`${p.name} 수정`}
                         onClick={() => {
                           setConfirmingId(null);
@@ -110,7 +134,18 @@ export default function ProgramManager({ programs, onAdd, onUpdate, onDelete }: 
         )}
         <div className="rounded-lg bg-slate-50 p-3">
           <p className="mb-2 text-sm font-semibold text-slate-700">새 프로그램</p>
-          <ProgramForm submitLabel="프로그램 추가" onSubmit={onAdd} />
+          {copySource && (
+            <p role="status" className="mb-2 text-sm text-blue-700">
+              {copySource.name}의 내용을 채웠습니다. 이름과 기간을 고친 뒤 추가하세요. (회차·신청자는 복사되지 않음)
+            </p>
+          )}
+          <ProgramForm
+            key={copyKey}
+            template={copySource ? copyOf(copySource) : undefined}
+            autoFocusName={copySource !== null}
+            submitLabel="프로그램 추가"
+            onSubmit={handleAdd}
+          />
         </div>
       </div>
     </details>

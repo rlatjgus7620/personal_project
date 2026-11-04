@@ -1,4 +1,4 @@
-"""VAL-01 ~ VAL-11: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
+"""VAL-01 ~ VAL-12: 입력 검사 규칙 (docs/TEST_CASES.md 1절)"""
 
 from datetime import UTC, date, datetime
 
@@ -9,6 +9,7 @@ from app.schemas import (
     ApplicantCreate,
     ApplicantOut,
     ApplicantUpdate,
+    BulkCreate,
     ProgramCreate,
     ProgramUpdate,
     SessionCreate,
@@ -123,3 +124,24 @@ def test_val_11_회차_수정은_보낸_항목만_바꾸고_날짜는_비울_수
     for bad in [{}, {"sessionDate": None}, {"sessionDate": ""}, {"note": "가" * 31}]:
         with pytest.raises(ValidationError):
             SessionUpdate.model_validate(bad)
+
+
+def test_val_12_일괄_등록은_1명부터_200명까지_줄_검사_문구는_한국어() -> None:
+    from app.messages import validation_message
+
+    ok = BulkCreate.model_validate({"programId": 3, "items": [{"name": "김예시", "phone": "010-0000-0001"}]})
+    assert ok.program_id == 3
+    for bad in [
+        {"programId": 3, "items": []},
+        {"programId": 3, "items": [{"name": "가", "phone": "010-0000-0001"}] * 201},
+        {"programId": None, "items": [{"name": "가", "phone": "010-0000-0001"}]},
+    ]:
+        with pytest.raises(ValidationError):
+            BulkCreate.model_validate(bad)
+    # 줄 하나를 검사할 때 나온 에러도 화면 문구와 같은 한국어로
+    with pytest.raises(ValidationError) as error:
+        ApplicantCreate.model_validate({"name": "", "phone": "010-0000-0001", "program_id": 3})
+    assert validation_message(list(error.value.errors())) == "이름을 입력해 주세요."
+    with pytest.raises(ValidationError) as error:
+        ApplicantCreate.model_validate({"name": "김예시", "phone": "02-123-4567", "program_id": 3})
+    assert validation_message(list(error.value.errors())) == "연락처는 010-0000-0000 형식으로 입력해 주세요."

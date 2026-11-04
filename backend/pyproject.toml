@@ -1,6 +1,6 @@
 [project]
 name = "educheck-backend"
-version = "2.2.1"
+version = "2.7.0"
 description = "에듀체크: 교육 프로그램 신청·참석 관리 API"
 requires-python = ">=3.12"
 dependencies = [
@@ -14,7 +14,17 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "ruff>=0.8",  # 코드 검사 (v2.3): uv run python -m ruff check .
 ]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+# E·W: 기본 코드 모양, F: 안 쓰는 import·변수 같은 실수, UP: 옛날 문법을 새 문법으로
+select = ["E", "W", "F", "UP"]
+ignore = ["E501"]  # 긴 줄은 한국어 주석·문구 때문에 허용
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

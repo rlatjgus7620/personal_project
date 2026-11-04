@@ -312,6 +312,10 @@ class AttendanceOut(CamelModel):
 
 # ---------- 신청자 ----------
 
+BULK_MAX_ROWS = 200
+MSG_BULK_EMPTY = "등록할 명단이 없습니다."
+MSG_BULK_TOO_MANY = f"한 번에 {BULK_MAX_ROWS}명까지 등록할 수 있습니다."
+
 
 class ApplicantCreate(CamelModel):
     """POST /api/applicants 요청 본문"""
@@ -389,3 +393,43 @@ class ApplicantOut(CamelModel):
     @classmethod
     def _as_utc(cls, value: datetime) -> datetime:
         return as_utc(value)
+
+
+# ---------- 명단 일괄 등록 (v2.5) ----------
+
+
+class BulkCreate(CamelModel):
+    """POST /api/applicants/bulk 요청 본문.
+
+    items는 줄마다 따로 검사하려고 일부러 느슨한 모양(dict)으로 받습니다.
+    한 줄이 틀려도 나머지 줄은 등록하고, 틀린 줄은 failed로 알려줍니다.
+    """
+
+    program_id: int
+    items: list[dict[str, object]]
+
+    @field_validator("program_id", mode="before")
+    @classmethod
+    def _program_id(cls, value: object) -> object:
+        return check_program_id(value)
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, value: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not value:
+            raise ValueError(MSG_BULK_EMPTY)
+        if len(value) > BULK_MAX_ROWS:
+            raise ValueError(MSG_BULK_TOO_MANY)
+        return value
+
+
+class BulkFailure(CamelModel):
+    row: int  # 몇 번째 줄인지 (1부터)
+    name: str
+    phone: str
+    message: str
+
+
+class BulkResult(CamelModel):
+    created: list[ApplicantOut]
+    failed: list[BulkFailure]

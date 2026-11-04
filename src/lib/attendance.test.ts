@@ -3,6 +3,8 @@ import { makeSession } from "../test-utils/makeSession";
 import {
   applicantSessionStat,
   attendanceRate,
+  defaultCheckInProgramId,
+  defaultSessionFor,
   isCompleted,
   hasAttended,
   isPresent,
@@ -58,4 +60,15 @@ test("LOGIC-20 출석률이 수료 기준 이상이면 수료 (v2.1)", () => {
   expect(isCompleted({ attended: 0, total: 0 }, 1)).toBe(false);
   expect(attendanceRate({ attended: 2, total: 3 })).toBe(67);
   expect(attendanceRate({ attended: 0, total: 0 })).toBe(0);
+});
+
+test("LOGIC-25 체크인 회차·프로그램 기본값: 오늘 → 지난 마지막 → 첫 번째 (v2.4)", () => {
+  const list = sessionsOf(SESSIONS, 3); // 11.10, 11.12, 11.14
+  expect(defaultSessionFor(list, "2026-11-12")?.sessionDate).toBe("2026-11-12");
+  expect(defaultSessionFor(list, "2026-11-13")?.sessionDate).toBe("2026-11-12");
+  expect(defaultSessionFor(list, "2026-11-01")?.sessionDate).toBe("2026-11-10");
+  expect(defaultSessionFor([], "2026-11-01")).toBeUndefined();
+  expect(defaultCheckInProgramId([1, 3, 4], SESSIONS, "2026-11-14")).toBe(3);
+  expect(defaultCheckInProgramId([1, 3, 4], SESSIONS, "2026-12-25")).toBe(1);
+  expect(defaultCheckInProgramId([], SESSIONS, "2026-12-25")).toBeUndefined();
 });

@@ -142,3 +142,28 @@ class AuthNotConfiguredError(AppError):
     status_code = 503
     code = "AUTH_NOT_CONFIGURED"
     default_message = "서버에 관리자 비밀번호가 설정되지 않았습니다. backend/.env를 확인해 주세요."
+
+
+# ---------- 기간 검사 (v2.3) ----------
+
+
+def _dot(day: object) -> str:
+    return str(day).replace("-", ".")
+
+
+def period_text(start: object, end: object) -> str:
+    """2026.11.10 ~ 2026.11.12 / 2026.11.10 ~ / ~ 2026.11.12"""
+    return f"{_dot(start) if start else ''} ~ {_dot(end) if end else ''}".strip()
+
+
+class SessionOutOfPeriodError(AppError):
+    """회차 날짜가 프로그램 기간 밖 → 400"""
+
+    def __init__(self, period: str) -> None:
+        super().__init__(f"회차 날짜는 프로그램 기간({period}) 안이어야 합니다.")
+
+
+class SessionsOutsidePeriodError(AppError):
+    """프로그램 기간을 바꾸면 기존 회차가 기간 밖으로 나감 → 400"""
+
+    default_message = "바꾼 기간 밖에 회차가 있습니다. 회차 날짜를 먼저 옮기거나 지워 주세요."

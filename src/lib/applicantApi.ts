@@ -5,6 +5,8 @@ import type {
   ApplicantChanges,
   ApplicantInput,
   AttendanceRecord,
+  BulkResult,
+  BulkRow,
   Program,
   ProgramInput,
   Session,
@@ -90,6 +92,15 @@ export function createApplicant(input: ApplicantInput): Promise<Applicant> {
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify(input),
+  });
+}
+
+// 명단 일괄 등록 (v2.5): 줄마다 성공·실패를 따로 돌려줌 (일부만 실패해도 나머지는 등록)
+export function createApplicantsBulk(programId: number, items: BulkRow[]): Promise<BulkResult> {
+  return request<BulkResult>("/api/applicants/bulk", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ programId, items }),
   });
 }
 

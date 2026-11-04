@@ -1,4 +1,4 @@
-"""REPO-01 ~ REPO-19 시나리오.
+"""REPO-01 ~ REPO-20 시나리오.
 
 메모리 저장소(test_repository.py)와 SQL 저장소(test_sql_repository.py)가
 똑같은 시나리오를 통과해야 "라우터가 차이를 모른다"고 말할 수 있습니다.
@@ -21,6 +21,8 @@ from app.errors import (
     ProgramFullError,
     ProgramInUseError,
     SessionNotFoundError,
+    SessionOutOfPeriodError,
+    SessionsOutsidePeriodError,
 )
 from app.repository import ApplicantRepository
 from app.seed import DEMO_APPLICANTS, DEMO_PROGRAMS, seed_demo
@@ -286,6 +288,29 @@ def repo_19_시연용_데이터는_비어_있을_때_한_번만_들어간다(rep
     assert len(repo.list()) == len(DEMO_APPLICANTS)
 
 
+
+def repo_20_회차는_프로그램_기간_안이어야_한다(repo: ApplicantRepository) -> None:
+    pid = repo.create_program(
+        ProgramCreate.model_validate({"name": "모의면접", "startDate": "2026-11-10", "endDate": "2026-11-12"})
+    ).id
+    sid = session(repo, pid, 10)
+    for day in ["2026-11-09", "2026-11-13"]:
+        with pytest.raises(SessionOutOfPeriodError) as error:
+            repo.create_session(pid, SessionCreate.model_validate({"sessionDate": day}))
+        assert "2026.11.10 ~ 2026.11.12" in str(error.value)
+    with pytest.raises(SessionOutOfPeriodError):
+        repo.update_session(sid, SessionUpdate.model_validate({"sessionDate": "2026-11-20"}))
+    # 기간을 줄여서 10일 회차가 밖으로 나가면 막힘, 회차를 포함하면 통과
+    with pytest.raises(SessionsOutsidePeriodError):
+        repo.update_program(pid, ProgramUpdate.model_validate({"startDate": "2026-11-11"}))
+    assert repo.update_program(pid, ProgramUpdate.model_validate({"endDate": "2026-11-30"})) is not None
+    # 하루짜리(종료일 없음)는 시작일 당일만
+    one_day = repo.create_program(ProgramCreate.model_validate({"name": "취업 특강", "startDate": "2026-11-20"})).id
+    with pytest.raises(SessionOutOfPeriodError):
+        repo.create_session(one_day, SessionCreate.model_validate({"sessionDate": "2026-11-21"}))
+    assert repo.create_session(one_day, SessionCreate.model_validate({"sessionDate": "2026-11-20"})) is not None
+
+
 ALL_SCENARIOS = [
     repo_01_등록하면_최신순으로_조회된다,
     repo_02_참석으로_바꾸면_updated_at이_갱신된다,
@@ -306,4 +331,5 @@ ALL_SCENARIOS = [
     repo_17_회차_날짜와_메모를_고쳐도_출석은_그대로,
     repo_18_수료_기준은_기본_80이고_바꿀_수_있다,
     repo_19_시연용_데이터는_비어_있을_때_한_번만_들어간다,
+    repo_20_회차는_프로그램_기간_안이어야_한다,
 ]

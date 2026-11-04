@@ -38,3 +38,8 @@ export function formatPeriod(start: string | null, end: string | null): string {
   if (!start && end) return `~ ${dotDate(end)}`;
   return `${dotDate(start as string)} ~ ${dotDate(end as string)}`;
 }
+
+// 오늘 날짜(한국 시간)를 "2026-11-04" 모양으로 (v2.4, 현장 체크인에서 오늘 회차 찾기)
+export function todayInSeoul(now: Date = new Date()): string {
+  return formatDate(now.toISOString()).replace(/\./g, "-");
+}

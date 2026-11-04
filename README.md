@@ -1,9 +1,11 @@
 # 에듀체크 (EduCheck)
 
+[![CI](https://github.com/rlatjgus7620/personal_project/actions/workflows/ci.yml/badge.svg)](https://github.com/rlatjgus7620/personal_project/actions/workflows/ci.yml)
+
 교육 프로그램 신청·참석 관리 앱
 
 교육기관 운영 담당자가 프로그램 신청자를 등록하고, 행사 당일 참석을 체크하고, 프로그램별로 골라 보는 웹 앱입니다.
-현재 버전: **v2.2.1** (수료 판정, 회차 수정, 출석표, 시연용 데이터까지)
+현재 버전: **v2.7** (현장 체크인, 명단 일괄 등록, 통계, 자동 테스트까지)
 
 ![실행 화면](docs/images/screenshot.png)
 
@@ -25,6 +27,10 @@
 - 수료 판정: 프로그램마다 수료 기준 출석률(기본 80%)을 정하면 기준을 넘은 사람에게 **수료** 표시, 요약·CSV에도 반영
 - 회차별 출석표: 사람 × 회차 표를 CSV로 저장하거나 인쇄 (인쇄본은 연락처 가림)
 - 시연용 가짜 데이터: 명령 하나로 프로그램·신청자·회차·출석을 채워서 바로 시연
+- 현장 체크인: 태블릿용 큰 화면에서 이름이나 연락처 뒷자리 4개로 찾아 큰 버튼으로 출석 (오늘 회차를 자동으로 고름)
+- 명단 한꺼번에 등록: 엑셀에서 이름·연락처 두 칸을 복사해 붙여 넣으면 줄마다 검사 후 한 번에 등록
+- 프로그램 복사, 통계(프로그램별 요약 표·회차별 출석률), 회차 날짜는 프로그램 기간 안에서만
+- 자동 검사: GitHub에 올릴 때마다 서버·화면 테스트, 코드 검사, 빌드, 실제 브라우저 흐름 테스트가 자동으로 돎
 - 지금 보이는(필터된) 명단을 엑셀용 CSV로 내려받기 (`신청자명단_YYYYMMDD.csv`, 연락처 전체 포함이라 파일 관리 주의)
 
 ## 기술 스택
@@ -43,6 +49,10 @@ personal_project/
 ├─ package.json                 # 화면 쪽 패키지와 명령 (npm run dev:all 등)
 ├─ dev-all.ps1                  # 서버와 화면을 터미널 하나로 켜는 스크립트
 ├─ .env.example                 # 화면용 환경 변수 예시 (NEXT_PUBLIC_API_URL)
+├─ eslint.config.mjs            # 화면 코드 검사 규칙 (v2.3, npm run lint)
+├─ playwright.config.ts         # 화면 전체 흐름 테스트 설정 (v2.7, npm run test:e2e)
+├─ .github/workflows/ci.yml     # GitHub Actions: push마다 검사·테스트·빌드 자동 실행 (v2.3)
+├─ e2e/                         # 화면 전체 흐름 테스트 (Playwright, v2.7)
 │
 ├─ docs/                        # 명세 문서 (코드보다 먼저 씀)
 │  ├─ IDEA.md                   # 아이디어, MVP, 빼는 것, 버전 로드맵
@@ -64,17 +74,25 @@ personal_project/
 │  │  ├─ ApplicantForm.tsx      # 신청자 등록 폼
 │  │  ├─ ApplicantList.tsx      # 명단 목록
 │  │  ├─ ApplicantItem.tsx      # 신청자 한 줄 (참석 체크, 수정, 삭제 확인)
-│  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름 검색
+│  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름·연락처 뒷자리 검색
 │  │  ├─ ApplicantSummary.tsx   # 전체 N명 · 참석 M명
 │  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원, 참석률, 정원·마감
-│  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제 (v1.2)
-│  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원 입력 (v1.2)
-│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·삭제, 회차별 출석 체크 (v1.3)
-│  │  ├─ AdminDashboard.tsx     # 로그인 뒤의 관리 화면 전체 (데이터 불러오기·저장) (v2.0)
+│  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제·복사 (v1.2, 복사 v2.5)
+│  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원·수료 기준 입력 (v1.2)
+│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·수정·삭제, 출석 체크, 출석표 (v1.3)
+│  │  ├─ SessionEditForm.tsx    # 회차 날짜·메모 수정 칸 (v2.1, v2.7에 분리)
+│  │  ├─ AttendanceSheetButtons.tsx # 출석표 CSV·인쇄 버튼 (v2.2, v2.7에 분리)
+│  │  ├─ ProgramStats.tsx       # 통계: 프로그램별 요약 표, 회차별 출석률 막대 (v2.6)
+│  │  ├─ BulkImport.tsx         # 명단 한꺼번에 등록 (엑셀 붙여넣기) (v2.5)
+│  │  ├─ CheckInMode.tsx        # 현장 체크인: 태블릿용 큰 화면 (v2.4)
+│  │  ├─ AdminDashboard.tsx     # 로그인 뒤의 화면 배치 (관리·현장 체크인 모드) (v2.0)
 │  │  ├─ LoginForm.tsx          # 관리자 로그인 화면 (v2.0)
 │  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
 │  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
+│  │  ├─ useEduData.ts          # 관리 화면의 데이터 불러오기·저장 훅 (v2.7)
+│  │  ├─ bulkImport.ts          # 붙여 넣은 명단 해석·검사 (v2.5)
+│  │  ├─ stats.ts               # 회차별 출석률 계산 (v2.6)
 │  │  ├─ validation.ts          # 입력값 검사 (서버와 같은 규칙·문구)
 │  │  ├─ filterApplicants.ts    # 필터 계산
 │  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜·기간 표시
@@ -89,10 +107,11 @@ personal_project/
 │  └─ test-utils/               # 테스트용 가짜 데이터 (makeApplicant, makeProgram, makeSession)
 │
 └─ backend/                     # FastAPI 서버
-   ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
+   ├─ pyproject.toml            # 서버 쪽 패키지와 pytest·ruff 설정
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
+   ├─ scripts/e2e_server.py     # 화면 흐름 테스트용 서버: 빈 DB로 8100번 (v2.7)
    ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석, 0004 수료 기준)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
@@ -111,6 +130,7 @@ personal_project/
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
    │  ├─ middleware.py          # 예상 못 한 에러도 같은 형식의 500으로 (v2.2.1)
+   │  ├─ messages.py            # 입력 검사 에러 → 한국어 문구 (main·일괄 등록이 함께 씀)
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
    └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 로그인, 신청자·프로그램·회차 API)
 ```
@@ -178,14 +198,26 @@ cd backend
 uv run python -m app.seed
 ```
 
-## 테스트
+## 테스트와 코드 검사
 
 ```powershell
 npm test                                  # 화면 테스트 (Jest)
 cd backend
 uv run python -m pytest                    # 서버 테스트 (메모리 저장소)
 uv run python -m pytest -m db              # DB 저장소 테스트 (backend/test.db)
+uv run python -m ruff check .              # 서버 코드 검사 (v2.3)
+cd ..
+npm run lint                              # 화면 코드 검사 (v2.3)
 ```
+
+**화면 전체 흐름 테스트 (Playwright, v2.7, 선택)**: 처음 한 번 브라우저를 설치한 뒤 실행합니다. 테스트 전용 서버(8100)와 화면(3100)을 알아서 켜고 끕니다.
+
+```powershell
+npx playwright install chromium
+npm run test:e2e
+```
+
+GitHub에 push하면 위 검사가 모두 자동으로 돌고, 결과는 저장소의 **Actions** 탭과 맨 위 배지에서 볼 수 있습니다.
 
 ## Windows에서 막힐 때
 

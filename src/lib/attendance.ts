@@ -65,3 +65,24 @@ export function isCompleted(stat: SessionStat, completionRate: number): boolean 
 export function attendanceRate(stat: SessionStat): number {
   return stat.total === 0 ? 0 : Math.round((stat.attended / stat.total) * 100);
 }
+
+// ---------- 현장 체크인 (v2.4) ----------
+
+// 체크인할 회차 고르기: 오늘 회차 → 없으면 오늘 이전 마지막 회차 → 없으면 첫 회차
+// (list는 sessionsOf로 날짜순 정렬된 한 프로그램의 회차)
+export function defaultSessionFor(list: Session[], today: string): Session | undefined {
+  const exact = list.find((s) => s.sessionDate === today);
+  if (exact) return exact;
+  const past = list.filter((s) => s.sessionDate < today);
+  return past.length > 0 ? past[past.length - 1] : list[0];
+}
+
+// 처음 고를 프로그램: 오늘 회차가 있는 프로그램 → 없으면 첫 프로그램
+export function defaultCheckInProgramId(
+  programIds: number[],
+  sessions: Session[],
+  today: string,
+): number | undefined {
+  const withToday = programIds.find((id) => sessions.some((s) => s.programId === id && s.sessionDate === today));
+  return withToday ?? programIds[0];
+}

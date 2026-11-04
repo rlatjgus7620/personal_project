@@ -1,4 +1,4 @@
-"""REPO-01 ~ REPO-19: SQL 저장소. 실행: uv run pytest -m db
+"""REPO-01 ~ REPO-20: SQL 저장소. 실행: uv run pytest -m db
 
 DATABASE_URL_TEST(비어 있으면 backend/test.db SQLite 파일)에 연결합니다.
 테스트마다 테이블을 새로 만들어서 깨끗한 상태에서 시작합니다.

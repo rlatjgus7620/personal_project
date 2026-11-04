@@ -17,7 +17,7 @@ test("UI-14 참석 여부 버튼 3개, 프로그램 필터, 이름 검색을 보
     expect(screen.getByRole("button", { name })).toBeInTheDocument();
   }
   expect(screen.getByLabelText("프로그램 필터")).toBeInTheDocument();
-  expect(screen.getByLabelText("이름 검색")).toBeInTheDocument();
+  expect(screen.getByLabelText("이름 또는 연락처 검색")).toBeInTheDocument();
 });
 
 test("UI-15 선택된 버튼만 aria-pressed=true", () => {
@@ -41,6 +41,6 @@ test("UI-17 프로그램 필터에서 모의면접을 고르면 onChange", async
 
 test("UI-18 검색창에 입력하면 keyword가 담긴 onChange", async () => {
   const { onChange, user } = setup();
-  await user.type(screen.getByLabelText("이름 검색"), "김");
+  await user.type(screen.getByLabelText("이름 또는 연락처 검색"), "김");
   expect(onChange).toHaveBeenCalledWith({ ...INITIAL_FILTER, keyword: "김" });
 });

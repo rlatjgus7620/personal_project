@@ -21,6 +21,8 @@ from app.models import Applicant, Attendance, Program, Session as SessionRow
 from app.repository import (
     ensure_capacity_fits,
     ensure_period,
+    ensure_session_in_period,
+    ensure_sessions_fit,
     ensure_same_program,
     ensure_seat,
     now_utc,
@@ -114,6 +116,10 @@ class SqlApplicantRepository:
         ensure_period(start, end)
         capacity = cast(int | None, changes.get("capacity", row.capacity))
         ensure_capacity_fits(capacity, self._count(program_id))
+        days = list(
+            self._session.scalars(select(SessionRow.session_date).where(SessionRow.program_id == program_id))
+        )
+        ensure_sessions_fit(days, start, end)
         for field, value in changes.items():
             setattr(row, field, value)
         self._commit(DuplicateProgramError())
@@ -150,8 +156,10 @@ class SqlApplicantRepository:
         return [self._session_out(row) for row in rows]
 
     def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
-        if self._session.get(Program, program_id) is None:
+        program = self._session.get(Program, program_id)
+        if program is None:
             return None
+        ensure_session_in_period(data.session_date, program.start_date, program.end_date)
         exists = self._session.scalar(
             select(SessionRow.id).where(
                 SessionRow.program_id == program_id, SessionRow.session_date == data.session_date
@@ -172,7 +180,10 @@ class SqlApplicantRepository:
         if row is None:
             return None
         changes = data.changes()
-        new_date = changes.get("session_date", row.session_date)
+        new_date = cast(date, changes.get("session_date", row.session_date))
+        program = self._session.get(Program, row.program_id)
+        if program is not None:
+            ensure_session_in_period(new_date, program.start_date, program.end_date)
         taken = self._session.scalar(
             select(SessionRow.id).where(
                 SessionRow.program_id == row.program_id,

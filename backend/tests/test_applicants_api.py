@@ -1,4 +1,4 @@
-"""API-01 ~ API-16, API-23 ~ API-24, API-38: /api/applicants 와 /health (docs/TEST_CASES.md 3절)
+"""API-01 ~ API-16, API-23 ~ API-24, API-38, API-40: /api/applicants 와 /health (docs/TEST_CASES.md 3절)
 
 신청하려면 프로그램이 있어야 하므로, 먼저 프로그램을 만들고 그 번호로 신청합니다.
 """
@@ -205,3 +205,32 @@ def test_api_38_예상_못_한_에러도_같은_형식의_500이고_CORS가_붙�
     }
     # CORS 허락 표시가 있어야 브라우저가 응답을 막지 않음
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_api_40_명단_일괄_등록은_줄마다_결과를_돌려준다(client: TestClient) -> None:
+    pid = client.post("/api/programs", json={"name": "모의면접", "capacity": 3}).json()["id"]
+    client.post(URL, json={"name": "기존", "phone": "010-0000-0009", "programId": pid})
+    items = [
+        {"name": "김예시", "phone": "010-0000-0001"},
+        {"name": "이샘플", "phone": "010-0000-0009"},  # 이미 신청한 연락처
+        {"name": "박데모", "phone": "02-123-4567"},  # 형식 오류
+        {"name": "최가상", "phone": "010-0000-0004"},  # 여기서 정원 3명이 참
+        {"name": "정연습", "phone": "010-0000-0005"},  # 정원 초과
+    ]
+    response = client.post(f"{URL}/bulk", json={"programId": pid, "items": items})
+    assert response.status_code == 200
+    body = response.json()
+    assert [a["name"] for a in body["created"]] == ["김예시", "최가상"]
+    assert [(f["row"], f["message"]) for f in body["failed"]] == [
+        (2, "이미 같은 프로그램에 신청한 연락처입니다."),
+        (3, "연락처는 010-0000-0000 형식으로 입력해 주세요."),
+        (5, "정원이 가득 찼습니다. (정원 3명)"),
+    ]
+    assert len(client.get(URL).json()) == 3
+
+    empty = client.post(f"{URL}/bulk", json={"programId": pid, "items": []})
+    assert empty.status_code == 400
+    assert empty.json()["error"]["message"] == "등록할 명단이 없습니다."
+    no_program = client.post(f"{URL}/bulk", json={"programId": 999, "items": items[:1]})
+    assert no_program.status_code == 400
+    assert no_program.json()["error"]["message"] == "선택한 프로그램이 없습니다."

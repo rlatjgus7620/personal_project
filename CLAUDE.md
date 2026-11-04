@@ -18,14 +18,17 @@
 ## 폴더 구조
 - app/              : Next.js 페이지
 - src/components/   : 화면 컴포넌트 (+ 같은 이름의 .test.tsx)
-- src/lib/          : API 호출 함수, 필터·표시용 순수 함수
+- src/lib/          : API 호출 함수, 데이터 훅(useEduData), 필터·표시용 순수 함수
 - src/types/        : 공유 타입
 - src/test-utils/   : 테스트용 가짜 데이터 함수
 - docs/images/      : README용 화면 캡처
 - dev-all.ps1       : 서버와 화면을 함께 켜는 스크립트 (npm run dev:all)
 - docs/             : 명세 문서
+- e2e/              : 화면 전체 흐름 테스트 (Playwright)
+- .github/workflows/: GitHub Actions 자동 검사 (ci.yml)
 - backend/app/      : FastAPI 코드 (main, schemas, repository, routers ...)
 - backend/tests/    : pytest 테스트
+- backend/scripts/  : 개발·테스트용 실행 파일 (e2e_server.py)
 - backend/alembic/  : DB 마이그레이션
 
 ## 반드시 참고할 문서
@@ -50,9 +53,12 @@
 - 프런트 개발 서버: npm run dev (http://localhost:3000)
 - 프런트 테스트: npm test
 - 프런트 빌드 확인: npm run build
+- 프런트 코드 검사: npm run lint
+- 화면 전체 흐름 테스트: npm run test:e2e (처음 한 번 npx playwright install chromium)
 - 백엔드 개발 서버: cd backend && uv run python -m fastapi dev app/main.py (http://localhost:8000/docs)
 - 백엔드 테스트: cd backend && uv run python -m pytest
 - DB 저장소 테스트: cd backend && uv run python -m pytest -m db
+- 백엔드 코드 검사: cd backend && uv run python -m ruff check .
 - DB 테이블 만들기/갱신: cd backend && uv run python -m alembic upgrade head
 - 시연용 가짜 데이터: cd backend && uv run python -m app.seed (빈 DB에서만 동작)
 - Windows에서는 uv run python -m <도구> 형식으로 실행 (앱 제어 정책 때문)

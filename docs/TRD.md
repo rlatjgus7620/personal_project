@@ -17,6 +17,9 @@
 | DB 구조 관리 | Alembic | 테이블을 만들고 바꾼 기록을 파일로 남긴다 (DB용 Git) |
 | 개발용 DB | SQLite | 설치·가입 없이 파일 하나로 바로 동작한다 |
 | 배포용 DB | Neon Postgres | 무료 클라우드 DB. 배포한 서버가 여기에 저장한다 |
+| 자동 검사 (v2.3) | GitHub Actions | push할 때마다 GitHub가 검사·테스트·빌드를 대신 돌려서, 고장 난 코드가 들어오면 바로 알 수 있다 |
+| 코드 검사 (v2.3) | Ruff(파이썬), ESLint(화면) | 안 쓰는 import, 실수하기 쉬운 코드를 실행 전에 찾아 준다 |
+| 화면 흐름 테스트 (v2.7) | Playwright | 실제 브라우저를 띄워 로그인부터 체크인까지 사람처럼 눌러 본다 |
 
 ## 2. 폴더 구조
 
@@ -27,6 +30,10 @@ personal_project/
 ├─ package.json                 # 화면 쪽 패키지와 명령 (npm run dev:all 등)
 ├─ dev-all.ps1                  # 서버와 화면을 터미널 하나로 켜는 스크립트
 ├─ .env.example                 # 화면용 환경 변수 예시 (NEXT_PUBLIC_API_URL)
+├─ eslint.config.mjs            # 화면 코드 검사 규칙 (v2.3, npm run lint)
+├─ playwright.config.ts         # 화면 전체 흐름 테스트 설정 (v2.7, npm run test:e2e)
+├─ .github/workflows/ci.yml     # GitHub Actions: push마다 검사·테스트·빌드 자동 실행 (v2.3)
+├─ e2e/                         # 화면 전체 흐름 테스트 (Playwright, v2.7)
 │
 ├─ docs/                        # 명세 문서 (코드보다 먼저 씀)
 │  ├─ IDEA.md                   # 아이디어, MVP, 빼는 것, 버전 로드맵
@@ -48,17 +55,25 @@ personal_project/
 │  │  ├─ ApplicantForm.tsx      # 신청자 등록 폼
 │  │  ├─ ApplicantList.tsx      # 명단 목록
 │  │  ├─ ApplicantItem.tsx      # 신청자 한 줄 (참석 체크, 수정, 삭제 확인)
-│  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름 검색
+│  │  ├─ ApplicantFilter.tsx    # 참석 여부·프로그램 필터, 이름·연락처 뒷자리 검색
 │  │  ├─ ApplicantSummary.tsx   # 전체 N명 · 참석 M명
 │  │  ├─ ProgramSummary.tsx     # 프로그램별 신청·참석 인원, 참석률, 정원·마감
-│  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제 (v1.2)
-│  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원 입력 (v1.2)
-│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·삭제, 회차별 출석 체크 (v1.3)
-│  │  ├─ AdminDashboard.tsx     # 로그인 뒤의 관리 화면 전체 (데이터 불러오기·저장) (v2.0)
+│  │  ├─ ProgramManager.tsx     # 프로그램 목록·추가·수정·삭제·복사 (v1.2, 복사 v2.5)
+│  │  ├─ ProgramForm.tsx        # 프로그램 이름·기간·장소·정원·수료 기준 입력 (v1.2)
+│  │  ├─ AttendanceBook.tsx     # 회차 출석부: 회차 추가·수정·삭제, 출석 체크, 출석표 (v1.3)
+│  │  ├─ SessionEditForm.tsx    # 회차 날짜·메모 수정 칸 (v2.1, v2.7에 분리)
+│  │  ├─ AttendanceSheetButtons.tsx # 출석표 CSV·인쇄 버튼 (v2.2, v2.7에 분리)
+│  │  ├─ ProgramStats.tsx       # 통계: 프로그램별 요약 표, 회차별 출석률 막대 (v2.6)
+│  │  ├─ BulkImport.tsx         # 명단 한꺼번에 등록 (엑셀 붙여넣기) (v2.5)
+│  │  ├─ CheckInMode.tsx        # 현장 체크인: 태블릿용 큰 화면 (v2.4)
+│  │  ├─ AdminDashboard.tsx     # 로그인 뒤의 화면 배치 (관리·현장 체크인 모드) (v2.0)
 │  │  ├─ LoginForm.tsx          # 관리자 로그인 화면 (v2.0)
 │  │  └─ ExportButton.tsx       # 명단 CSV 내보내기
 │  ├─ lib/                      # 화면과 분리된 함수 (+ .test.ts)
 │  │  ├─ applicantApi.ts        # FastAPI를 부르는 함수 모음
+│  │  ├─ useEduData.ts          # 관리 화면의 데이터 불러오기·저장 훅 (v2.7)
+│  │  ├─ bulkImport.ts          # 붙여 넣은 명단 해석·검사 (v2.5)
+│  │  ├─ stats.ts               # 회차별 출석률 계산 (v2.6)
 │  │  ├─ validation.ts          # 입력값 검사 (서버와 같은 규칙·문구)
 │  │  ├─ filterApplicants.ts    # 필터 계산
 │  │  ├─ format.ts              # 연락처 가리기, 하이픈 자동 입력, 날짜·기간 표시
@@ -73,10 +88,11 @@ personal_project/
 │  └─ test-utils/               # 테스트용 가짜 데이터 (makeApplicant, makeProgram, makeSession)
 │
 └─ backend/                     # FastAPI 서버
-   ├─ pyproject.toml            # 서버 쪽 패키지와 pytest 설정
+   ├─ pyproject.toml            # 서버 쪽 패키지와 pytest·ruff 설정
    ├─ uv.lock                   # 설치된 패키지 버전 고정
    ├─ .env.example              # 서버용 환경 변수 예시 (DB 주소, CORS)
    ├─ alembic.ini               # DB 마이그레이션 설정
+   ├─ scripts/e2e_server.py     # 화면 흐름 테스트용 서버: 빈 DB로 8100번 (v2.7)
    ├─ alembic/versions/         # 테이블을 만들고 바꾼 기록 (0001 신청자, 0002 프로그램 분리, 0003 회차·출석, 0004 수료 기준)
    ├─ app/
    │  ├─ main.py                # 서버 시작점: CORS, 에러 형식 통일, 라우터 등록
@@ -95,6 +111,7 @@ personal_project/
    │  ├─ db.py                  # DB 연결과 세션
    │  ├─ config.py              # .env 설정 읽기
    │  ├─ middleware.py          # 예상 못 한 에러도 같은 형식의 500으로 (v2.2.1)
+   │  ├─ messages.py            # 입력 검사 에러 → 한국어 문구 (main·일괄 등록이 함께 씀)
    │  └─ errors.py              # 404·409·업무 규칙 에러 (정원 초과 등)
    └─ tests/                    # pytest 테스트 (입력 검사, 저장소, 로그인, 신청자·프로그램·회차 API)
 ```
@@ -136,6 +153,21 @@ v1.2부터 8번 단계에서 **프로그램이 있는지, 정원이 찼는지**�
   - **알고 있는 한계**: 누군가 일부러 계속 틀리면 관리자도 1분씩 로그인하지 못한다. 서버를 다시 켜면 횟수가 초기화된다. 담당자 1명용 앱에서는 받아들일 만한 수준으로 판단했다.
 - 무료 배포 서버(Render)는 오래 쉬면 잠들었다가 다시 켜진다. `AUTH_SECRET`이 비어 있으면 그때마다 토큰 서명 키가 바뀌어 로그인이 풀리므로, 배포 때는 꼭 넣는다.
 - 비밀번호·토큰은 코드, 문서, 로그(print)에 남기지 않는다.
+
+## 3-2. 자동 검사와 화면 흐름 테스트 (v2.3, v2.7)
+
+- `.github/workflows/ci.yml`: main에 push하거나 PR을 만들면 GitHub의 리눅스 컴퓨터에서 세 작업이 동시에 돈다.
+  - **서버**: `uv sync` → `ruff check` → `pytest` → `pytest -m db`(SQLite) → 빈 DB에 마이그레이션 0001~최신 + 시연 데이터
+  - **화면**: `npm ci` → `npm run lint` → `npm test` → `npm run build`
+  - **화면 흐름**: Playwright 브라우저 설치 → `npx playwright test` (실패하면 결과 보고서를 내려받을 수 있음)
+- 코드 검사 규칙: Ruff는 `E`·`W`·`F`·`UP`(긴 줄 허용), ESLint는 Next.js 권장(`next/core-web-vitals`, `next/typescript`). `next build`는 ESLint를 건너뛰고(빌드가 경고로 막히지 않게) 검사는 `npm run lint`·CI에서 따로 한다.
+- Playwright(`playwright.config.ts`)는 테스트 전용 서버(8100, `backend/scripts/e2e_server.py`가 빈 `backend/e2e.db`를 만들고 마이그레이션)와 화면(3100)을 새로 켠다. 비밀번호도 테스트 전용 가짜 값이라 개발용 `dev.db`·`backend/.env`와 섞이지 않는다.
+
+## 3-3. 화면 데이터 코드 나누기 (v2.7)
+
+- 관리 화면이 커져서(343줄) 데이터 불러오기·저장 코드를 `src/lib/useEduData.ts` 훅으로 옮겼다. `AdminDashboard.tsx`는 화면 배치만 한다.
+- 회차 출석부(`AttendanceBook.tsx`, 410줄)도 회차 수정 칸(`SessionEditForm.tsx`)과 출석표 버튼(`AttendanceSheetButtons.tsx`)을 따로 떼어 냈다. 화면과 동작은 그대로다.
+- 모든 저장 함수는 성공하면 `true`를 돌려준다. 현장 체크인처럼 "성공했을 때만 안내 문구"가 필요한 화면이 이 값을 쓴다.
 
 ## 4. 저장소(Repository) 분리
 - 라우터는 `Depends(get_repo)`로 받은 저장소만 쓴다. DB를 직접 모른다.

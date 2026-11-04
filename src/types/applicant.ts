@@ -56,6 +56,12 @@ export type SessionInput = { sessionDate: string; note: string | null };
 // 한 신청자의 출석 횟수 / 그 프로그램 회차 수
 export type SessionStat = { attended: number; total: number };
 
+// ---------- 명단 일괄 등록 (v2.5) ----------
+
+export type BulkRow = { name: string; phone: string };
+export type BulkFailure = { row: number; name: string; phone: string; message: string }; // row: 1부터
+export type BulkResult = { created: Applicant[]; failed: BulkFailure[] };
+
 export type AttendanceFilter = "all" | "attended" | "absent";
 
 export type ApplicantFilterValue = {

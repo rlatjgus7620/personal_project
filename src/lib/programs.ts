@@ -1,6 +1,6 @@
 // 프로그램 관련 계산 (순수 함수, v1.2)
 
-import type { Applicant, Program } from "../types/applicant";
+import type { Applicant, Program, ProgramInput } from "../types/applicant";
 
 // 번호로 프로그램 이름 찾기
 export function programName(programs: Program[], id: number): string {
@@ -25,4 +25,22 @@ export function programOptionLabel(program: Program): string {
   if (program.capacity === null) return program.name;
   if (isFull(program)) return `${program.name} (마감)`;
   return `${program.name} (${program.applicantCount}/${program.capacity}명)`;
+}
+
+// 프로그램 복사 (v2.5): 이름 뒤에 " (복사)"를 붙이되 30자를 넘지 않게
+export function copyName(name: string, maxLength = 30): string {
+  const suffix = " (복사)";
+  return name.slice(0, maxLength - suffix.length) + suffix;
+}
+
+// 복사할 때 새 프로그램 칸에 채울 값 (회차·신청자는 복사하지 않음)
+export function copyOf(program: Program): ProgramInput {
+  return {
+    name: copyName(program.name),
+    startDate: program.startDate,
+    endDate: program.endDate,
+    location: program.location,
+    capacity: program.capacity,
+    completionRate: program.completionRate,
+  };
 }

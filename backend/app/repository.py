@@ -26,6 +26,9 @@ from app.errors import (
     ProgramFullError,
     ProgramInUseError,
     SessionNotFoundError,
+    SessionOutOfPeriodError,
+    SessionsOutsidePeriodError,
+    period_text,
 )
 from app.schemas import (
     ApplicantCreate,
@@ -134,6 +137,29 @@ def ensure_period(start: date | None, end: date | None) -> None:
         raise InvalidPeriodError()
 
 
+def period_end(start: date | None, end: date | None) -> date | None:
+    """종료일이 비어 있으면 하루짜리 → 시작일이 곧 종료일"""
+    return end if end is not None else start
+
+
+def in_period(day: date, start: date | None, end: date | None) -> bool:
+    """기간이 정해져 있지 않으면 어느 날짜든 통과"""
+    last = period_end(start, end)
+    return (start is None or start <= day) and (last is None or day <= last)
+
+
+def ensure_session_in_period(day: date, start: date | None, end: date | None) -> None:
+    """회차 날짜는 프로그램 기간 안 (v2.3)"""
+    if not in_period(day, start, end):
+        raise SessionOutOfPeriodError(period_text(start, period_end(start, end)))
+
+
+def ensure_sessions_fit(days: list[date], start: date | None, end: date | None) -> None:
+    """프로그램 기간을 바꿀 때 기존 회차가 모두 새 기간 안에 있어야 함 (v2.3)"""
+    if any(not in_period(day, start, end) for day in days):
+        raise SessionsOutsidePeriodError()
+
+
 # ---------- 메모리 저장소 ----------
 
 
@@ -192,6 +218,11 @@ class MemoryApplicantRepository:
             raise DuplicateProgramError()
         ensure_period(updated.start_date, updated.end_date)
         ensure_capacity_fits(updated.capacity, current.applicant_count)
+        ensure_sessions_fit(
+            [s.session_date for s in self._sessions if s.program_id == program_id],
+            updated.start_date,
+            updated.end_date,
+        )
         self._programs = [updated if p.id == program_id else p for p in self._programs]
         return updated
 
@@ -214,8 +245,10 @@ class MemoryApplicantRepository:
         return [self._session_out(s) for s in ordered]
 
     def create_session(self, program_id: int, data: SessionCreate) -> SessionOut | None:
-        if self._program(program_id) is None:
+        program = self._program(program_id)
+        if program is None:
             return None
+        ensure_session_in_period(data.session_date, program.start_date, program.end_date)
         if any(s.program_id == program_id and s.session_date == data.session_date for s in self._sessions):
             raise DuplicateSessionError()
         session = SessionOut(
@@ -234,6 +267,9 @@ class MemoryApplicantRepository:
         if current is None:
             return None
         updated = current.model_copy(update=data.changes())
+        program = self._program(updated.program_id)
+        if program is not None:
+            ensure_session_in_period(updated.session_date, program.start_date, program.end_date)
         if any(
             s.program_id == updated.program_id and s.session_date == updated.session_date and s.id != session_id
             for s in self._sessions

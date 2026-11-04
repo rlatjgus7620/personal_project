@@ -13,6 +13,8 @@ import {
 
 type Props = {
   initial?: Program; // 수정할 때 기존 값
+  template?: ProgramInput; // 추가 폼에 미리 채울 값 (프로그램 복사, v2.5). 추가에 성공하면 비움
+  autoFocusName?: boolean; // 처음에 이름 칸에 커서 (복사 직후 이름을 바로 고치게)
   submitLabel: string; // "프로그램 추가" 또는 "저장"
   onSubmit: (input: ProgramInput) => Promise<boolean>; // 성공하면 true
   onCancel?: () => void; // 있으면 취소 버튼을 보여줌
@@ -27,7 +29,7 @@ type Draft = {
   completionRate: string; // v2.1
 };
 
-function toDraft(program?: Program): Draft {
+function toDraft(program?: ProgramInput): Draft {
   const capacity = program?.capacity;
   return {
     name: program?.name ?? "",
@@ -53,8 +55,15 @@ function toInput(draft: Draft): ProgramInput {
   };
 }
 
-export default function ProgramForm({ initial, submitLabel, onSubmit, onCancel }: Props) {
-  const [draft, setDraft] = useState<Draft>(() => toDraft(initial));
+export default function ProgramForm({
+  initial,
+  template,
+  autoFocusName = false,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: Props) {
+  const [draft, setDraft] = useState<Draft>(() => toDraft(initial ?? template));
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const id = useId();
@@ -93,6 +102,7 @@ export default function ProgramForm({ initial, submitLabel, onSubmit, onCancel }
         <label htmlFor={`${id}-name`}>프로그램 이름</label>
         <input
           id={`${id}-name`}
+          autoFocus={autoFocusName}
           value={draft.name}
           maxLength={PROGRAM_NAME_MAX_LENGTH}
           onChange={(e) => set("name", e.target.value)}

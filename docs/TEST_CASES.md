@@ -18,6 +18,7 @@
 | VAL-09 | SessionCreate | 날짜 + 메모 `" OT "` → 통과(메모 `"OT"`), 메모 `"  "` → `None` / 날짜 없음, 메모 31자 → 실패 | | F-15 |
 | VAL-10 | ProgramCreate·ProgramUpdate 수료 기준 | 안 보냄·`null` → 80, `"70"` → 70 / 0, 101, `true`, 문자 → 실패, 수정에서 `null` → 실패 | | F-19 |
 | VAL-11 | SessionUpdate | 메모만 `null` → `{note: None}`, 날짜만 → 날짜 / 빈 객체, 날짜 `null`·빈 값, 메모 31자 → 실패 | | F-20 |
+| VAL-12 | BulkCreate, validation_message | 1명 → 통과 / 0명·201명·프로그램 없음 → 실패, 줄 검사 에러가 "이름을 입력해 주세요."·"연락처는 …" 한국어 문구로 | | F-26 |
 | VAL-08 | ProgramUpdate | `{"capacity": null}` → 통과(정원 비우기로 기록됨) / `{}`, `{"name": null}` → 실패 | | F-13, F-14 |
 
 ## 2. 백엔드 — 저장소 (test_repository.py, test_sql_repository.py)
@@ -45,6 +46,7 @@
 | REPO-17 | 회차 날짜·메모 수정 | 출석 기록 그대로, 날짜순 다시 정렬, 다른 회차와 같은 날짜 → `DuplicateSessionError`, 자기 날짜 그대로 메모만 → 통과, 없는 id → `None` | F-20 |
 | REPO-18 | 수료 기준 | 만들면 80, 60으로 수정 → 목록에도 60 | F-19 |
 | REPO-19 | seed_demo (시연용 데이터) | 기본 프로그램이 있으면 내용만 채움, 프로그램·신청자·회차·출석 수가 정의와 같음, 연락처가 모두 `010-0000-`, 두 번째 실행은 `False`로 아무것도 안 함 | F-22 |
+| REPO-20 | 회차 기간 검사 | 기간 11.10~11.12에 9일·13일 회차 추가, 20일로 수정 / 시작일을 11일로 줄임 / 종료일을 늘림 / 하루짜리 프로그램 | `SessionOutOfPeriodError`(문구에 기간) / `SessionsOutsidePeriodError` / 통과 / 시작일만 허용 | F-23 |
 
 ## 3. 백엔드 — API (backend/tests/test_applicants_api.py, test_programs_api.py)
 
@@ -85,6 +87,8 @@
 | API-36 | PATCH /api/sessions/{id} | 날짜 바꾸고 메모 `null` / 다른 회차 날짜 / `{}` / 없는 회차 | 200 / 409 `DUPLICATE_SESSION` / 400 "수정할 항목이 없습니다." / 404 | F-20 |
 | API-37 | POST·PATCH /api/programs `completionRate` | 70으로 추가 → 100으로 수정 / 0, 101, `null`, 문자 | 200 / 400 "수료 기준은 1~100% 사이로 입력해 주세요." (API-17: 안 보내면 80) | F-19 |
 | API-38 | 예상 못 한 에러 | 저장소가 `RuntimeError`를 냄 (Origin: localhost:3000) | 500 `INTERNAL_ERROR` "서버에서 오류가 발생했습니다…", 응답에 `access-control-allow-origin` 있음 | — |
+| API-39 | 회차 기간 검사 | 기간 밖 회차 추가 / 회차를 밖으로 내보내는 기간 수정 | 400 "회차 날짜는 프로그램 기간(2026.11.10 ~ 2026.11.12) 안이어야 합니다." / 400 "바꾼 기간 밖에 회차가 있습니다…" | F-23 |
+| API-40 | POST /api/applicants/bulk | 정원 3명(기존 1명)에 5줄: 정상·중복·형식 오류·정상·정원 초과 / 빈 목록 / 없는 프로그램 | 200, `created` 2명, `failed` 줄 번호·이유 3개 / 400 "등록할 명단이 없습니다." / 400 "선택한 프로그램이 없습니다." | F-26 |
 
 ## 3-1. 백엔드 — 로그인 (backend/tests/test_auth.py, test_auth_api.py, v2.0)
 
@@ -125,6 +129,13 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | LOGIC-20 | isCompleted, attendanceRate | 4/5회 기준 80 / 2/3회 기준 80·60 / 회차 0개 | 수료 / 미수료·수료 / 미수료, 출석률 67% | F-19 |
 | LOGIC-21 | buildAttendanceSheet | 회차 2개(날짜 섞임), 신청자 2명 + 다른 프로그램 1명 | 이름순 × 날짜순, `O`, `1/2`, `50%`, 수료 기준 60%로 수료·미수료, 인쇄용은 연락처 가림 | F-21 |
 | LOGIC-22 | sheetToCsv, sheetFileName, escapeHtml, sheetToHtml | CSV 한 줄, 파일 이름의 `/` → `_`, 이름이 `<img src=x>` | BOM + 쉼표 줄, `출석표_모의면접 1_2반_20261103.csv`, HTML에 태그가 그대로 들어가지 않음 | F-21 |
+| LOGIC-23 | matchesKeyword | 이름 일부 / `5678`·`56`·`1234-5678` / 가운데 `1234`·끝 `78` | 맞음 / 맞음 / 안 맞음, 숫자 검색으로 명단 거르기 | F-25 |
+| LOGIC-24 | todayInSeoul | UTC 15:30 / 14:59 | 한국 날짜로 다음 날 / 같은 날 | F-24 |
+| LOGIC-25 | defaultSessionFor, defaultCheckInProgramId | 오늘 회차 있음 / 지난 회차만 / 앞으로 회차만 / 회차 없음 | 오늘 / 지난 마지막 / 첫 회차 / 없음, 오늘 회차 있는 프로그램 먼저 | F-24 |
+| LOGIC-26 | parseRoster (구분) | 머리글 + 탭·쉼표·띄어쓰기 줄, 빈 줄 | 머리글·빈 줄 건너뜀, 줄 번호 유지, 하이픈 자동 | F-26 |
+| LOGIC-27 | parseRoster (문제) | 이미 신청한 연락처, 이름 빈 칸, 형식 오류, 붙여넣기 안 중복 / 다른 프로그램 | 줄마다 문구 / 다른 프로그램 신청자와는 겹쳐도 통과 | F-26 |
+| LOGIC-28 | sessionRates | 회차 2개(날짜 섞임), 신청 4명, 다른 사람 기록 포함 | 날짜순, `3/4 75%`, `1/4 25%`, 그 프로그램 신청자만 셈 | F-28 |
+| LOGIC-29 | copyName, copyOf | 짧은 이름 / 30자 이름 | " (복사)" 붙임, 30자 이내, 장소·정원·수료 기준 그대로 | F-27 |
 | LOGIC-14 | withApplicantCounts, isFull, programOptionLabel | 정원 2에 2명 / 정원 없음 | `applicantCount` 다시 계산, 마감 `true`·문구 `(마감)` / `false`·이름만 | F-14 |
 
 ## 5. 프런트 — API 호출 (src/lib/applicantApi.test.ts)
@@ -160,7 +171,7 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | UI-11 | ApplicantList | 0명 | `emptyMessage` 표시 | F-03 |
 | UI-12 | ApplicantList | 3명 | 목록 항목 3개 | F-03 |
 | UI-13 | ApplicantSummary | 3명 중 1명 참석 | "전체 3명 · 참석 1명" | F-06 |
-| UI-14 | ApplicantFilter | 표시 | 버튼 3개(전체/참석/미참석), 프로그램 필터, 이름 검색 | F-09 |
+| UI-14 | ApplicantFilter (v2.4: 검색창 이름이 "이름 또는 연락처 검색") | 표시 | 버튼 3개(전체/참석/미참석), 프로그램 필터, 이름 검색 | F-09 |
 | UI-15 | ApplicantFilter | 현재 값 `attended` | "참석" 버튼만 `aria-pressed="true"` | F-09 |
 | UI-16 | ApplicantFilter | "미참석" 클릭 | `onChange({ ...value, attendance: "absent" })` | F-09 |
 | UI-17 | ApplicantFilter | 프로그램 필터에서 모의면접 선택 | `onChange({ ...value, program: 모의면접 번호 })` | F-09 |
@@ -197,6 +208,25 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | UI-48 | AttendanceBook | **1회차 수정** → 날짜 비우고 저장 / 날짜·메모 바꿔 저장 | "회차 날짜를 입력해 주세요." / `onUpdateSession(10, { sessionDate, note: null })`, 수정 칸 닫힘 | F-20 |
 | UI-49 | AttendanceBook | 회차 없음 + 참석 체크된 신청자 1명 | "참석 체크된 신청자가 1명 있습니다…" 안내 | F-16 |
 | UI-50 | AttendanceBook | 2회 모두 출석한 사람 / 출석표 CSV / 팝업이 막힌 출석표 인쇄 | "수료" 표시 / 파일 내려받기 1번 / "팝업이 막혀 인쇄 창을 열 수 없습니다…" | F-19, F-21 |
+| UI-51 | CheckInMode | 오늘(11.12) 회차가 있는 프로그램, 1명 출석 | 그 프로그램·회차가 먼저 골라짐, "출석 1/2명", 이름순, 출석한 사람은 "출석 취소" 버튼 | F-24 |
+| UI-52 | CheckInMode | 뒷자리 `2222` 검색 → **출석** / 없는 이름 | `onSetAttendance(11, 2, true)`, "김예시 님 출석 처리했습니다", 검색칸 비움 / "찾는 신청자가 없습니다" | F-24, F-25 |
+| UI-53 | CheckInMode | 회차 없는 프로그램 고름 → 출석 취소 → **관리 화면으로** | 회차 선택 없음·안내 문구, `onSetAttended(3, false)`, 취소 문구, `onClose` | F-24 |
+| UI-54 | BulkImport | 3줄 붙여넣기(정상·이미 신청·형식 오류) → 프로그램 고르고 등록 | 프로그램 전에는 "2명 · 1개"이고 버튼 잠김, 고른 뒤 "등록할 수 있는 사람 1명 · 문제 있는 줄 2개", 정상 줄만 `onBulkAdd`, "1명을 등록했습니다." | F-26 |
+| UI-55 | BulkImport | 서버가 정원 초과로 실패 | 실패 이름·연락처·이유 표시, 입력칸 유지 | F-26 |
+| UI-56 | ProgramManager | **모의면접 복사** → **프로그램 추가** | 새 프로그램 칸에 "모의면접 (복사)"·장소 채움, 안내 표시, 같은 설정으로 `onAdd`, 성공 후 비움 | F-27 |
+| UI-57 | ProgramStats | 신청 2명, 회차 1개, 출석 1명 / 신청 0명 프로그램 | 요약 표 `2명·1개·50%·1/2명` / `0명·-`, 회차별 막대 옆 `1/2명 · 50%`, 회차 없는 프로그램은 막대 없음 | F-28 |
+
+## 6-1. 화면 전체 흐름 (e2e/flow.spec.ts, Playwright, v2.7)
+
+테스트 전용 서버(8100, 빈 `backend/e2e.db`)와 화면(3100)을 새로 켜서 실제 브라우저로 누릅니다. 실행: `npm run test:e2e`
+
+| ID | 흐름 | 기대 결과 | 기능 |
+|---|---|---|---|
+| E2E-01 | 틀린 비밀번호 → 로그인 → 신청자 1명 등록 → 2명 일괄 등록 → 회차 2개 추가 → 한 사람 두 회차 출석 → 현장 체크인에서 뒷자리 `0003`으로 출석 → 로그아웃 → 새로고침 | 각 단계 문구, "3명 표시 중", 명단에 "출석 2/2회"·"수료", "박데모 님 출석 처리했습니다", 로그인 화면 유지 | F-01, F-16, F-17, F-19, F-24~26 |
+
+## 6-2. 자동 실행 (GitHub Actions, .github/workflows/ci.yml, v2.3)
+
+push·PR마다: 서버(ruff, pytest, `pytest -m db`, 빈 DB 마이그레이션·시연 데이터) / 화면(eslint, jest, build) / 화면 흐름(Playwright)
 
 ## 7. 직접 해 보는 확인 (브라우저)
 
@@ -209,6 +239,8 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | MAN-06 | `backend/.env`에 `ADMIN_PASSWORD`를 넣고 서버 재시작 → 로그인 → 새로고침 → 탭 닫고 다시 열기 → 로그아웃 | 로그인 후 명단이 보임, 새로고침해도 유지, 탭을 닫으면 다시 로그인, 로그아웃하면 로그인 화면 | F-17, F-18 |
 | MAN-07 | v2.0 데이터가 있는 `dev.db`에 `alembic upgrade head` (v2.1) | 기존 프로그램의 수료 기준이 80%로 채워지고 나머지 데이터는 그대로 | F-07, F-19 |
 | MAN-08 | 빈 DB에서 `uv run python -m app.seed` → 한 번 더 실행 / 출석표 인쇄 | 시연용 데이터가 들어감 → "이미 신청자나 회차가 있어서 넣지 않았습니다." / 새 창에 표가 열리고 인쇄 창이 뜸 | F-21, F-22 |
+| MAN-09 | 태블릿(또는 브라우저 폭 줄이기)에서 **현장 체크인** | 큰 버튼이 한 줄에 보이고 가로로 넘치지 않음, 뒷자리 4개로 찾아 출석 | F-24 |
+| MAN-10 | 엑셀에서 이름·연락처 두 열을 복사해 **명단 한꺼번에 등록**에 붙여넣기 | 줄마다 검사 결과가 보이고 등록됨 | F-26 |
 | MAN-05 | v1.2 데이터가 있는 `dev.db`에 `alembic upgrade head` (v1.3) | 회차·출석 테이블이 생기고, 기존 신청자·참석 체크는 그대로 | F-07, F-16 |
 
 ## 기능 ↔ 테스트 연결 확인
@@ -234,6 +266,12 @@ API 테스트의 `client`는 테스트용 비밀번호로 미리 로그인해서
 | F-20 회차 수정 | VAL-11, REPO-17, API-36, CLIENT-07, UI-48 |
 | F-21 출석표 내보내기 | LOGIC-21~22, UI-50, MAN-08 |
 | F-22 시연용 데이터 | REPO-19, MAN-08 |
+| F-23 회차 기간 검사 | REPO-20, API-39 |
+| F-24 현장 체크인 | LOGIC-24~25, UI-51~53, E2E-01, MAN-09 |
+| F-25 연락처 뒷자리 검색 | LOGIC-23, UI-14, UI-18, UI-52, E2E-01 |
+| F-26 명단 일괄 등록 | VAL-12, API-40, LOGIC-26~27, UI-54~55, E2E-01, MAN-10 |
+| F-27 프로그램 복사 | LOGIC-29, UI-56 |
+| F-28 통계 | LOGIC-28, UI-57 |
 | F-17 관리자 로그인 | AUTH-02, API-31~32, API-34~35, LOGIC-19, CLIENT-08, UI-44~45, MAN-06 |
 | F-18 명단 보호 | AUTH-01, API-33, CLIENT-09, UI-46, MAN-06 |
 | F-14 정원 관리 | VAL-07~08, REPO-07~08, REPO-11, API-21, API-23~24, LOGIC-11~12, LOGIC-14, UI-28, UI-32, UI-36 |

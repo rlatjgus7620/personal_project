@@ -22,6 +22,7 @@
 | DELETE | `/api/sessions/{id}/attendees/{applicantId}` | 출석 체크 해제 | 204 | v1.3 |
 | GET | `/api/applicants` | 명단 조회 (최신 신청순) | 200 | |
 | POST | `/api/applicants` | 신청자 등록 | 201 | |
+| POST | `/api/applicants/bulk` | 명단 일괄 등록 (줄마다 성공·실패) | 200 | v2.5 |
 | PATCH | `/api/applicants/{id}` | 정보 수정 또는 참석 전환 | 200 | |
 | DELETE | `/api/applicants/{id}` | 신청 취소(삭제) | 204 | |
 
@@ -128,6 +129,7 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 |---|---|
 | 빈 객체 `{}` | 400 `VALIDATION_ERROR` "수정할 항목이 없습니다." |
 | 정원을 지금 신청자 수보다 적게 | 400 `VALIDATION_ERROR` "지금 신청자(N명)보다 정원을 적게 줄일 수 없습니다." |
+| 기간을 바꿔서 기존 회차가 기간 밖으로 나감 (v2.3) | 400 `VALIDATION_ERROR` "바꾼 기간 밖에 회차가 있습니다. 회차 날짜를 먼저 옮기거나 지워 주세요." |
 | 수정 결과 종료일이 시작일보다 빠름 | 400 `VALIDATION_ERROR` "종료일은 시작일보다 빠를 수 없습니다." |
 | 없는 id | 404 `NOT_FOUND` "프로그램을 찾을 수 없습니다." |
 | 그 밖의 규칙 위반 | POST와 같음 |
@@ -165,6 +167,7 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 | 날짜 형식이 틀림 | 400 `VALIDATION_ERROR` "날짜는 YYYY-MM-DD 형식으로 입력해 주세요." |
 | 메모 31자 이상 | 400 `VALIDATION_ERROR` "메모는 30자 이하로 입력해 주세요." |
 | 같은 날짜 회차가 이미 있음 | 409 `DUPLICATE_SESSION` "같은 날짜의 회차가 이미 있습니다." |
+| 날짜가 프로그램 기간 밖 (v2.3) | 400 `VALIDATION_ERROR` "회차 날짜는 프로그램 기간(2026.11.10 ~ 2026.11.12) 안이어야 합니다." (종료일이 없으면 시작일 하루가 기간) |
 | 없는 프로그램 | 404 `NOT_FOUND` "프로그램을 찾을 수 없습니다." |
 
 ### PATCH /api/sessions/{id} (v2.1)
@@ -178,6 +181,7 @@ v2.0부터 `/health`와 `/api/auth/login`을 뺀 **모든 `/api/...` 주소는 �
 | 빈 객체 `{}` | 400 `VALIDATION_ERROR` "수정할 항목이 없습니다." |
 | 날짜를 `null`·빈 값으로 | 400 `VALIDATION_ERROR` "회차 날짜를 입력해 주세요." |
 | 같은 프로그램의 다른 회차와 날짜가 겹침 | 409 `DUPLICATE_SESSION` "같은 날짜의 회차가 이미 있습니다." |
+| 바꾼 날짜가 프로그램 기간 밖 (v2.3) | 400 `VALIDATION_ERROR` "회차 날짜는 프로그램 기간(…) 안이어야 합니다." |
 | 없는 회차 | 404 `NOT_FOUND` "회차를 찾을 수 없습니다." |
 
 ### DELETE /api/sessions/{id}
@@ -249,6 +253,25 @@ v1.1까지는 `"program": "mock_interview"` 같은 코드였고, v1.2부터 프�
 | 정원이 가득 참 | 409 `PROGRAM_FULL` "정원이 가득 찼습니다. (정원 N명)" |
 
 검사 순서: 입력값 → 프로그램이 있는지 → 중복 신청 → 정원
+
+### POST /api/applicants/bulk (v2.5)
+```json
+{ "programId": 3, "items": [ { "name": "김예시", "phone": "010-0000-0001" }, { "name": "이샘플", "phone": "010-0000-0002" } ] }
+```
+줄마다 `POST /api/applicants`와 같은 규칙(입력 검사, 중복, 정원)으로 등록합니다. **한 줄이 실패해도 나머지 줄은 등록**합니다. 응답 200
+```json
+{
+  "created": [ { "id": 7, "name": "김예시", "phone": "010-0000-0001", "programId": 3, "attended": false, "createdAt": "…", "updatedAt": "…" } ],
+  "failed": [ { "row": 2, "name": "이샘플", "phone": "010-0000-0002", "message": "정원이 가득 찼습니다. (정원 3명)" } ]
+}
+```
+`row`는 보낸 `items`의 몇 번째인지(1부터)입니다.
+
+| 상황 | 응답 |
+|---|---|
+| `items`가 비었음 | 400 `VALIDATION_ERROR` "등록할 명단이 없습니다." |
+| `items`가 200개 초과 | 400 `VALIDATION_ERROR` "한 번에 200명까지 등록할 수 있습니다." |
+| 없는 프로그램 | 400 `VALIDATION_ERROR` "선택한 프로그램이 없습니다." |
 
 ### PATCH /api/applicants/{id}
 바꿀 항목만 보냅니다. 네 항목(`name`, `phone`, `programId`, `attended`) 모두 선택이지만 **최소 하나는** 있어야 합니다.

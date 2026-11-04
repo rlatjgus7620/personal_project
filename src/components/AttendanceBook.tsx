@@ -1,4 +1,6 @@
 "use client";
+// 회차 출석부 (v1.3): 프로그램·회차 고르기, 회차 추가·삭제, 출석 체크
+// 회차 수정 칸(SessionEditForm)과 출석표 버튼(AttendanceSheetButtons)은 v2.7에 따로 분리
 
 import { useState, type FormEvent } from "react";
 import type { Applicant, AttendanceRecord, Program, Session, SessionInput } from "../types/applicant";
@@ -10,10 +12,10 @@ import {
   sessionsOf,
   shortDate,
 } from "../lib/attendance";
-import { buildAttendanceSheet, sheetFileName, sheetToCsv, sheetToHtml } from "../lib/attendanceSheet";
-import { downloadText } from "../lib/download";
-import { formatDate, maskPhone } from "../lib/format";
+import { maskPhone } from "../lib/format";
 import { MESSAGES, NOTE_MAX_LENGTH } from "../lib/validation";
+import AttendanceSheetButtons from "./AttendanceSheetButtons";
+import SessionEditForm from "./SessionEditForm";
 
 type Props = {
   programs: Program[];
@@ -43,11 +45,7 @@ export default function AttendanceBook({
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // 회차 수정 (v2.1)
-  const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState({ date: "", note: "" });
-  const [editMessage, setEditMessage] = useState<string | null>(null);
-  const [sheetMessage, setSheetMessage] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false); // 회차 수정 칸 (v2.1)
 
   // 고른 프로그램이 지워졌거나 아직 안 골랐으면 첫 프로그램
   const program = programs.find((p) => p.id === pickedProgramId) ?? programs[0];
@@ -58,7 +56,6 @@ export default function AttendanceBook({
     setMessage(null);
     setConfirmingDelete(false);
     setEditing(false);
-    setSheetMessage(null);
   }
 
   function pickSession(date: string) {
@@ -67,25 +64,18 @@ export default function AttendanceBook({
     setEditing(false);
   }
 
-  function startEdit(session: Session) {
-    setEditDraft({ date: session.sessionDate, note: session.note ?? "" });
-    setEditMessage(null);
+  function startEdit() {
     setConfirmingDelete(false);
     setEditing(true);
   }
 
-  async function handleEdit(event: FormEvent<HTMLFormElement>, session: Session) {
-    event.preventDefault();
-    if (editDraft.date === "") {
-      setEditMessage(MESSAGES.sessionDateRequired);
-      return;
-    }
-    const note = editDraft.note.trim();
-    const ok = await onUpdateSession(session.id, { sessionDate: editDraft.date, note: note === "" ? null : note });
+  async function handleEdit(session: Session, input: SessionInput): Promise<boolean> {
+    const ok = await onUpdateSession(session.id, input);
     if (ok) {
-      setPickedDate(editDraft.date); // 날짜가 바뀌어도 같은 회차를 계속 보여줌
+      setPickedDate(input.sessionDate); // 날짜가 바뀌어도 같은 회차를 계속 보여줌
       setEditing(false);
     }
+    return ok;
   }
 
   async function handleAdd(event: FormEvent<HTMLFormElement>) {
@@ -131,27 +121,9 @@ export default function AttendanceBook({
   const presentCount = current ? members.filter((a) => isPresent(attendance, current.id, a.id)).length : 0;
   // 회차가 없는 프로그램에서 이미 참석 체크한 사람 수 (회차를 추가하기 전에 알려 줌, v2.0.1)
   const checkedBeforeSessions = list.length === 0 ? members.filter((a) => a.attended).length : 0;
-  const selected = program; // 아래 함수에서 쓰려고 (타입상 undefined가 아님을 고정)
-
-  // 출석표 CSV·인쇄 (v2.2)
-  function exportSheet() {
-    const sheet = buildAttendanceSheet(selected, sessions, applicants, attendance);
-    downloadText(sheetFileName(selected.name), sheetToCsv(sheet));
-  }
-
-  function printSheet() {
-    const sheet = buildAttendanceSheet(selected, sessions, applicants, attendance, { maskPhones: true });
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setSheetMessage("팝업이 막혀 인쇄 창을 열 수 없습니다. 브라우저에서 팝업을 허용해 주세요.");
-      return;
-    }
-    setSheetMessage(null);
-    printWindow.document.write(sheetToHtml(sheet, formatDate(new Date().toISOString())));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  }
+  // 날짜 선택 칸은 프로그램 기간 안에서만 고르게 (v2.3, 서버도 400으로 막음). 종료일이 없으면 하루짜리
+  const minDate = program.startDate ?? undefined;
+  const maxDate = program.endDate ?? program.startDate ?? undefined;
 
   return (
     <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -213,6 +185,8 @@ export default function AttendanceBook({
           <input
             type="date"
             aria-label="회차 날짜"
+            min={minDate}
+            max={maxDate}
             value={draft.date}
             onChange={(e) => {
               setDraft({ ...draft, date: e.target.value });
@@ -276,7 +250,7 @@ export default function AttendanceBook({
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => startEdit(current)}
+                    onClick={startEdit}
                     className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm"
                   >
                     {index + 1}회차 수정
@@ -296,45 +270,14 @@ export default function AttendanceBook({
             </div>
 
             {editing && (
-              <form
-                onSubmit={(e) => handleEdit(e, current)}
-                noValidate
-                className="grid gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 sm:grid-cols-[auto_1fr_auto_auto] sm:items-center"
-              >
-                <input
-                  type="date"
-                  aria-label="회차 날짜 수정"
-                  value={editDraft.date}
-                  onChange={(e) => {
-                    setEditDraft({ ...editDraft, date: e.target.value });
-                    setEditMessage(null);
-                  }}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                />
-                <input
-                  aria-label="회차 메모 수정"
-                  placeholder="메모 (예: OT)"
-                  value={editDraft.note}
-                  maxLength={NOTE_MAX_LENGTH}
-                  onChange={(e) => setEditDraft({ ...editDraft, note: e.target.value })}
-                  className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
-                />
-                <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-white">
-                  저장
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(false)}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2"
-                >
-                  취소
-                </button>
-                {editMessage && (
-                  <p role="alert" className="text-sm text-red-600 sm:col-span-4">
-                    {editMessage}
-                  </p>
-                )}
-              </form>
+              <SessionEditForm
+                key={`edit-${current.id}`}
+                session={current}
+                minDate={minDate}
+                maxDate={maxDate}
+                onSave={(input) => handleEdit(current, input)}
+                onCancel={() => setEditing(false)}
+              />
             )}
 
             {members.length === 0 ? (
@@ -373,28 +316,13 @@ export default function AttendanceBook({
             )}
 
             {/* 출석표 내보내기 (v2.2): 사람 × 회차 표 */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
-              <span className="text-sm text-slate-500">출석표 (수료 기준 {program.completionRate}%)</span>
-              <button
-                type="button"
-                onClick={exportSheet}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-50"
-              >
-                출석표 CSV
-              </button>
-              <button
-                type="button"
-                onClick={printSheet}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-50"
-              >
-                출석표 인쇄
-              </button>
-              {sheetMessage && (
-                <p role="alert" className="w-full text-sm text-red-600">
-                  {sheetMessage}
-                </p>
-              )}
-            </div>
+            <AttendanceSheetButtons
+              key={`sheet-${program.id}`}
+              program={program}
+              applicants={applicants}
+              sessions={sessions}
+              attendance={attendance}
+            />
           </section>
         )}
       </div>

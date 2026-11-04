@@ -1,0 +1,78 @@
+# GitHub Actions: GitHub에 push하거나 PR을 만들 때마다 테스트를 자동으로 돌립니다 (v2.3).
+# 결과는 GitHub 저장소의 Actions 탭과 README 배지에서 볼 수 있습니다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: 서버 (pytest, ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # 테스트는 가짜 비밀번호를 conftest.py에서 넣으므로 실제 비밀번호가 필요 없음
+      DATABASE_URL_TEST: sqlite:///./test.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: 패키지 설치
+        run: uv sync
+      - name: 코드 검사 (ruff)
+        run: uv run ruff check .
+      - name: 테스트 (메모리 저장소)
+        run: uv run pytest
+      - name: 테스트 (DB 저장소, SQLite)
+        run: uv run pytest -m db
+      - name: 마이그레이션 확인 (빈 DB에 0001~최신까지)
+        run: |
+          DATABASE_URL=sqlite:///./ci.db uv run alembic upgrade head
+          DATABASE_URL=sqlite:///./ci.db uv run python -m app.seed
+
+  frontend:
+    name: 화면 (jest, eslint, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 패키지 설치
+        run: npm ci
+      - name: 코드 검사 (eslint)
+        run: npm run lint
+      - name: 테스트 (jest)
+        run: npm test -- --ci
+      - name: 빌드
+        run: npm run build
+
+  e2e:
+    name: 화면 흐름 (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 패키지 설치 (화면·서버)
+        run: |
+          npm ci
+          cd backend && uv sync
+      - name: 브라우저 설치
+        run: npx playwright install --with-deps chromium
+      - name: 화면 흐름 테스트
+        run: npx playwright test
+      - name: 실패하면 결과 보고서 남기기
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

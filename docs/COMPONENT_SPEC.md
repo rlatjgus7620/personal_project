@@ -7,20 +7,27 @@
 ```text
 Home (app/page.tsx)                  (v2.0) : 로그인 문지기 — 토큰이 없으면 LoginForm, 있으면 AdminDashboard
 ├─ LoginForm                         (v2.0) : 관리자 비밀번호 입력 + 로그인 버튼
-└─ AdminDashboard                    (v2.0) : 데이터와 상태를 가진 "지휘자" (v1.3까지의 page.tsx 내용) + 로그아웃 버튼
-   ├─ ApplicantSummary                      : 전체 N명 · 참석 M명
-   ├─ ProgramSummary                 (v1.1) : 프로그램별 신청·참석 인원, 참석률, 정원·마감 (v1.2)
-   ├─ ProgramManager                 (v1.2) : 프로그램 목록·추가·수정·삭제 (접었다 펴는 칸)
-   │  └─ ProgramForm                 (v1.2) : 프로그램 이름·시작일·종료일·장소·정원 입력
-   ├─ AttendanceBook                 (v1.3) : 회차 출석부 — 프로그램·회차 고르기, 회차 추가·삭제, 출석 체크 (접었다 펴는 칸)
-   ├─ ApplicantForm                         : 이름 + 연락처 + 프로그램 + 등록 버튼
-   ├─ ApplicantFilter                (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름 검색
-   ├─ ExportButton                   (v1.1) : 지금 보이는 명단을 CSV로 저장
-   └─ ApplicantList                         : 명단 (ul)
-      └─ ApplicantItem                      : 한 사람 (li) — 참석 체크, 정보, 수정, 삭제
+└─ AdminDashboard                    (v2.0) : 화면 배치 + 로그아웃·현장 체크인 버튼. 데이터는 useEduData 훅(v2.7)
+   ├─ [관리 화면]
+   │  ├─ ApplicantSummary                   : 전체 N명 · 참석 M명
+   │  ├─ ProgramSummary              (v1.1) : 프로그램별 신청·참석 인원, 참석률, 정원·마감 (v1.2)
+   │  ├─ ProgramManager              (v1.2) : 프로그램 목록·추가·수정·삭제·복사(v2.5) (접었다 펴는 칸)
+   │  │  └─ ProgramForm              (v1.2) : 프로그램 이름·시작일·종료일·장소·정원·수료 기준 입력
+   │  ├─ AttendanceBook              (v1.3) : 회차 출석부 — 회차 추가·수정·삭제, 출석 체크, 출석표 (접었다 펴는 칸)
+   │  │  ├─ SessionEditForm         (v2.7) : 회차 날짜·메모 수정 칸 (원래 AttendanceBook 안)
+   │  │  └─ AttendanceSheetButtons  (v2.7) : 출석표 CSV·인쇄 버튼 (원래 AttendanceBook 안)
+   │  ├─ ProgramStats                (v2.6) : 통계 — 프로그램별 요약 표, 회차별 출석률 막대 (접었다 펴는 칸)
+   │  ├─ ApplicantForm                      : 이름 + 연락처 + 프로그램 + 등록 버튼
+   │  ├─ BulkImport                  (v2.5) : 명단 한꺼번에 등록 — 붙여넣기, 줄마다 미리 검사 (접었다 펴는 칸)
+   │  ├─ ApplicantFilter             (v0.4) : 참석 여부 버튼 3개 + 프로그램 선택 + 이름·연락처 뒷자리 검색(v2.4)
+   │  ├─ ExportButton                (v1.1) : 지금 보이는 명단을 CSV로 저장
+   │  └─ ApplicantList                      : 명단 (ul)
+   │     └─ ApplicantItem                   : 한 사람 (li) — 참석 체크, 정보, 수정, 삭제
+   └─ [현장 체크인]
+      └─ CheckInMode                 (v2.4) : 태블릿용 큰 화면 — 프로그램·회차 고르기, 이름·뒷자리 검색, 큰 출석 버튼
 ```
 
-원칙: **데이터를 바꾸는 일(API 호출)은 페이지(v2.0부터 AdminDashboard)만 한다.** 부품들은 화면을 그리고, 사용자가 무엇을 했는지 `onAdd`, `onToggle` 같은 함수로 페이지에 알리기만 한다.
+원칙: **데이터를 바꾸는 일(API 호출)은 `useEduData` 훅(v2.7, 그 전에는 페이지)만 한다.** 부품들은 화면을 그리고, 사용자가 무엇을 했는지 `onAdd`, `onToggle` 같은 함수로 페이지에 알리기만 한다.
 
 v1.3부터 페이지는 회차(`GET /api/sessions`)와 출석 기록(`GET /api/attendance`)도 함께 불러온다. 신청자별 "출석 2/3회", 프로그램 출석률은 `lib/attendance.ts`의 순수 함수로 계산한다.
 
@@ -206,7 +213,7 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 |---|---|
 | 참석 여부 버튼 3개 | 전체(`all`) / 참석(`attended`) / 미참석(`absent`). 선택된 버튼은 `aria-pressed="true"` |
 | 프로그램 선택 | 접근 이름 "프로그램 필터". "전체 프로그램"(`all`) + 서버에서 받은 프로그램들 (값은 프로그램 번호) |
-| 검색창 | 접근 이름 "이름 검색", placeholder "이름으로 검색" |
+| 검색창 | 접근 이름 "이름 또는 연락처 검색", placeholder "이름 또는 연락처 뒷자리" (v2.4). 숫자를 넣으면 연락처 뒷자리 4개의 앞부분부터 맞춰 봄 (`matchesKeyword`) |
 
 - 무엇을 바꾸든 바뀐 항목만 새 값으로 바꾼 **전체 필터 값**으로 `onChange`를 부른다.
 - 필터 값은 페이지의 `useState`로 관리하고, 보여줄 목록은 `filterApplicants()`로 계산한다. (필터된 목록을 따로 state에 저장하지 않음)
@@ -303,6 +310,50 @@ ApplicantSummary의 "참석 M명", ApplicantFilter의 참석/미참석은 이 �
 - 엑셀에서 한글이 깨지지 않도록 파일 맨 앞에 BOM(`﻿`)을 붙인다.
 - 값에 쉼표·따옴표·줄바꿈이 있으면 큰따옴표로 감싸고, 값 안의 `"`는 `""`로 바꾼다.
 - 엑셀이 `=`, `+`, `-`, `@`로 시작하는 값을 수식으로 실행하지 않도록 그런 값 앞에는 `'`를 붙인다.
+
+### useEduData (v2.7, `src/lib/useEduData.ts`)
+- AdminDashboard에 있던 데이터 코드를 옮긴 훅. 화면은 이 훅이 돌려준 값과 함수만 쓴다.
+- 돌려주는 것: `applicants`, `programs`(신청자 수 계산됨), `sessions`, `attendance`, `loading`, `error`, `busyIds`, `isAttended`, `sessionStatOf`
+- 함수(모두 성공하면 `true`): `addApplicant`, `addApplicantsBulk`(결과 또는 `null`), `toggleAttended`, `setAttended`, `editApplicant`, `removeApplicant`, `addProgram`, `editProgram`, `removeProgram`, `addSession`, `editSession`, `removeSession`, `markAttendance`
+- 401이면 `onUnauthorized(message)`, 그 밖의 실패는 `error` 문구
+
+### CheckInMode (v2.4)
+| Props | 타입 | 설명 |
+|---|---|---|
+| `programs`, `applicants`, `sessions`, `attendance` | | 전체 데이터 |
+| `onSetAttended` | `(applicantId, attended) => Promise<boolean>` | 회차 없는 프로그램의 참석 체크 |
+| `onSetAttendance` | `(sessionId, applicantId, present) => Promise<boolean>` | 회차 있는 프로그램의 출석 |
+| `onClose` | `() => void` | **관리 화면으로** |
+| `today` | `string` (선택) | 테스트용 "오늘" (기본: 한국 날짜) |
+
+- 처음 프로그램: 오늘 회차가 있는 프로그램 → 없으면 첫 프로그램 (`defaultCheckInProgramId`)
+- 처음 회차: 오늘 회차 → 오늘 이전 마지막 회차 → 첫 회차 (`defaultSessionFor`). 회차 선택에서 오늘 회차는 `· 오늘` 표시
+- 선택: "체크인 프로그램", "체크인 회차"(회차 있는 프로그램만). 오른쪽에 큰 글씨 `출석 {M}/{N}명`
+- 검색: 접근 이름 "이름 또는 연락처 뒷자리", 처음부터 커서. 이름순 명단을 검색어로 거름
+- 한 사람 한 줄: 이름, 가린 연락처, 큰 버튼 **출석**(`{이름} 출석`) 또는 **출석 완료 · 취소**(`{이름} 출석 취소`)
+- 출석하면 `role="status"`로 "{이름} 님 출석 처리했습니다", 검색어를 비우고 검색칸으로 커서. 취소하면 "{이름} 님 출석을 취소했습니다"
+- 명단이 없으면 "이 프로그램 신청자가 없습니다", 검색 결과가 없으면 "찾는 신청자가 없습니다"
+
+### BulkImport (v2.5)
+| Props | 타입 |
+|---|---|
+| `programs`, `applicants` | 프로그램 목록, 이미 신청한 연락처 확인용 명단 |
+| `onBulkAdd` | `(programId, items: BulkRow[]) => Promise<BulkResult \| null>` |
+
+- `<details>` 제목 `명단 한꺼번에 등록`. 선택 "일괄 등록 프로그램", 입력칸 "붙여 넣을 명단"(여러 줄)
+- 붙여 넣는 즉시 `parseRoster()`로 줄마다 검사: 탭·쉼표·띄어쓰기 구분, 머리글 줄 건너뜀, 하이픈 자동, 이름·형식·이미 신청함·붙여넣기 안 중복
+- `등록할 수 있는 사람 N명 · 문제 있는 줄 M개`, 문제 줄 목록 `{줄}번째 줄 ({이름}): {이유}`
+- **{N}명 등록** 버튼: 프로그램 미선택·0명·200명 초과·보내는 중이면 비활성화. 문제없는 줄만 보냄
+- 결과(`role="status"`): "N명을 등록했습니다." + 실패 목록. 모두 성공하면 입력칸을 비움
+
+### ProgramStats (v2.6)
+- `<details>` 제목 `통계`. Props: `programs`, `applicants`, `sessions`, `attendance`
+- 표(캡션 "프로그램별 요약"): 프로그램 / 신청 / 회차 / 출석·참석률 / 수료(회차 있는 프로그램만 `M/N명`)
+- 회차가 있는 프로그램마다 `{이름} · 회차별 출석률`: 회차 한 줄에 `1회차 11.10`, 막대(출석률만큼, 한 가지 색), `3/4명 · 75%`. 숫자를 글자로 함께 적어 색 없이도 읽힘
+
+### ProgramManager 복사 (v2.5)
+- 줄마다 **복사**(`{이름} 복사`) 버튼 → 새 프로그램 칸에 `copyOf()` 값(이름 뒤 " (복사)", 30자 이내)을 채우고 이름 칸으로 커서, 안내 `role="status"`
+- 추가에 성공하면 안내와 칸을 비움. 회차·신청자는 복사하지 않음
 
 ## 4. 페이지 상태별 화면
 

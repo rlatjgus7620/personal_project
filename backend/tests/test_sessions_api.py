@@ -1,4 +1,4 @@
-"""API-25 ~ API-30, API-36: 회차·출석 (v1.3, docs/TEST_CASES.md 3절)"""
+"""API-25 ~ API-30, API-36, API-39: 회차·출석 (v1.3, docs/TEST_CASES.md 3절)"""
 
 from fastapi.testclient import TestClient
 
@@ -153,3 +153,16 @@ def test_api_36_회차_수정(client: TestClient) -> None:
     missing = client.patch("/api/sessions/999", json={"note": "x"})
     assert missing.status_code == 404
     assert error_of(missing.json())["message"] == "회차를 찾을 수 없습니다."
+
+
+def test_api_39_회차_날짜가_프로그램_기간_밖이면_400(client: TestClient) -> None:
+    response = client.post("/api/programs", json={"name": "모의면접", "startDate": "2026-11-10", "endDate": "2026-11-12"})
+    pid = response.json()["id"]
+    outside = client.post(f"/api/programs/{pid}/sessions", json={"sessionDate": "2026-12-01"})
+    assert outside.status_code == 400
+    assert error_of(outside.json())["message"] == "회차 날짜는 프로그램 기간(2026.11.10 ~ 2026.11.12) 안이어야 합니다."
+
+    make_session(client, pid, "2026-11-10")
+    shrink = client.patch(f"/api/programs/{pid}", json={"startDate": "2026-11-11"})
+    assert shrink.status_code == 400
+    assert error_of(shrink.json())["message"] == "바꾼 기간 밖에 회차가 있습니다. 회차 날짜를 먼저 옮기거나 지워 주세요."
